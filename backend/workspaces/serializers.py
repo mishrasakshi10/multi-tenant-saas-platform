@@ -1,6 +1,7 @@
 
 from django.db import transaction
 from django.contrib.auth import get_user_model
+from django.utils.text import slugify
 from rest_framework import serializers
 
 from .models import Workspace, Membership
@@ -32,8 +33,20 @@ class WorkspaceSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = self.context['request'].user
 
+        name = validated_data['name']
+        base_slug = slugify(name)[:160] or "workspace"
+
+        slug = base_slug
+        counter = 1
+
+        while Workspace.objects.filter(slug=slug).exists():
+            suffix = f"-{counter}"
+            slug = f"{base_slug[:160 - len(suffix)]}{suffix}"
+            counter += 1
+
         workspace = Workspace.objects.create(
             created_by=user,
+            slug=slug,
             **validated_data
         )
 
@@ -89,7 +102,6 @@ class MembershipSerializer(serializers.ModelSerializer):
 
         requested_role = attrs['role']
 
-        # Admin can add only ordinary Members.
         if (
             current_membership.role == Membership.Role.ADMIN
             and requested_role != Membership.Role.MEMBER
@@ -98,7 +110,6 @@ class MembershipSerializer(serializers.ModelSerializer):
                 "Admins can only add Members."
             )
 
-        # Only Owner and Admin can add members.
         if current_membership.role not in [
             Membership.Role.OWNER,
             Membership.Role.ADMIN,
@@ -107,7 +118,6 @@ class MembershipSerializer(serializers.ModelSerializer):
                 "You do not have permission to add members."
             )
 
-        # Prevent duplicate membership.
         if Membership.objects.filter(
             workspace=workspace,
             user=attrs['user']

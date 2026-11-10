@@ -1,0 +1,237 @@
+
+.workspaces-page {
+    width: 100%;
+    color: #17231f;
+}
+
+.workspaces-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.workspace-breadcrumb {
+    color: #059669;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    margin-bottom: 8px;
+}
+
+.workspaces-header h1 {
+    font-size: 30px;
+    margin: 0 0 8px;
+}
+
+.workspace-subtitle,
+.workspace-list-header p,
+.workspace-create-card p {
+    color: #78847e;
+    font-size: 14px;
+    margin: 0;
+}
+
+.workspace-count {
+    background: white;
+    border: 1px solid #e5ece8;
+    border-radius: 12px;
+    padding: 14px 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.workspace-count span {
+    color: #059669;
+    font-size: 25px;
+    font-weight: 700;
+}
+
+.workspace-count small {
+    color: #78847e;
+    font-size: 12px;
+}
+
+.workspace-create-card {
+    background: white;
+    border: 1px solid #e5ece8;
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 32px;
+}
+
+.workspace-create-card h2,
+.workspace-list-header h2 {
+    font-size: 18px;
+    margin: 0 0 7px;
+}
+
+.workspace-create-card form {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.workspace-create-card input {
+    flex: 1;
+    min-width: 0;
+    padding: 13px 15px;
+    border: 1px solid #dce5df;
+    border-radius: 8px;
+    outline: none;
+    font-size: 14px;
+}
+
+.workspace-create-card input:focus {
+    border-color: #059669;
+}
+
+.workspace-create-card button {
+    background: #059669;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0 20px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.workspace-create-card button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.workspace-error {
+    color: #dc2626 !important;
+    margin-top: 12px !important;
+}
+
+.workspace-success {
+    color: #059669 !important;
+    margin-top: 12px !important;
+}
+
+.workspace-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+.workspace-refresh {
+    background: white;
+    border: 1px solid #dce5df;
+    border-radius: 8px;
+    padding: 9px 14px;
+    color: #34443b;
+    cursor: pointer;
+}
+
+.workspace-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 18px;
+}
+
+.workspace-card {
+    background: white;
+    border: 1px solid #e5ece8;
+    border-radius: 13px;
+    padding: 20px;
+    transition: 0.2s;
+}
+
+.workspace-card:hover {
+    border-color: #059669;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 22px rgba(23, 35, 31, 0.06);
+}
+
+.workspace-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.workspace-card-icon,
+.workspace-empty-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: #e8f7f0;
+    color: #059669;
+    font-size: 21px;
+}
+
+.workspace-status {
+    background: #e8f7f0;
+    color: #059669;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.workspace-card h3 {
+    font-size: 17px;
+    margin: 0 0 7px;
+}
+
+.workspace-card p {
+    color: #78847e;
+    font-size: 13px;
+    margin: 0;
+}
+
+.workspace-card-footer {
+    border-top: 1px solid #edf1ee;
+    margin-top: 20px;
+    padding-top: 13px;
+    display: flex;
+    justify-content: space-between;
+    color: #78847e;
+    font-size: 12px;
+}
+
+.workspace-empty {
+    background: white;
+    border: 1px dashed #cbd8d0;
+    border-radius: 13px;
+    padding: 55px 20px;
+    text-align: center;
+    color: #78847e;
+}
+
+.workspace-empty-icon {
+    margin: 0 auto 15px;
+}
+
+.workspace-empty h3 {
+    color: #17231f;
+    margin: 0 0 8px;
+}
+
+.workspace-empty p {
+    font-size: 13px;
+    margin: 0;
+}
+
+@media (max-width: 600px) {
+    .workspaces-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .workspace-create-card form {
+        flex-direction: column;
+    }
+
+    .workspace-create-card button {
+        padding: 13px;
+    }
+}
