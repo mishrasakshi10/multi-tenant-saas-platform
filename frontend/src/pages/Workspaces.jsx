@@ -1,9 +1,12 @@
 
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import "./Workspaces.css";
 
 function Workspaces() {
+    const navigate = useNavigate();
+
     const [workspaces, setWorkspaces] = useState([]);
     const [workspaceName, setWorkspaceName] = useState("");
     const [loading, setLoading] = useState(true);
@@ -70,11 +73,17 @@ function Workspaces() {
         }
     };
 
+    const handleOpenWorkspace = (workspace) => {
+        navigate(`/projects?workspace=${workspace.id}`);
+    };
+
     return (
         <div className="workspaces-page">
             <div className="workspaces-header">
                 <div>
-                    <p className="workspace-breadcrumb">WORKSPACE MANAGEMENT</p>
+                    <p className="workspace-breadcrumb">
+                        WORKSPACE MANAGEMENT
+                    </p>
                     <h1>Workspaces</h1>
                     <p className="workspace-subtitle">
                         Create and manage your workspaces in one place.
@@ -115,26 +124,41 @@ function Workspaces() {
                     <h2>Your Workspaces</h2>
                     <p>All workspaces available to your account.</p>
                 </div>
-                <button onClick={fetchWorkspaces} className="workspace-refresh">
+
+                <button
+                    onClick={fetchWorkspaces}
+                    className="workspace-refresh"
+                >
                     ↻ Refresh
                 </button>
             </div>
 
             {loading ? (
-                <div className="workspace-empty">Loading workspaces...</div>
+                <div className="workspace-empty">
+                    Loading workspaces...
+                </div>
             ) : workspaces.length === 0 ? (
                 <div className="workspace-empty">
                     <div className="workspace-empty-icon">▣</div>
                     <h3>No workspaces yet</h3>
-                    <p>Create your first workspace using the form above.</p>
+                    <p>
+                        Create your first workspace using the form above.
+                    </p>
                 </div>
             ) : (
                 <div className="workspace-grid">
                     {workspaces.map((workspace) => (
-                        <div className="workspace-card" key={workspace.id}>
+                        <button
+                            type="button"
+                            className="workspace-card workspace-card-clickable"
+                            key={workspace.id}
+                            onClick={() => handleOpenWorkspace(workspace)}
+                        >
                             <div className="workspace-card-top">
                                 <div className="workspace-card-icon">▣</div>
-                                <span className="workspace-status">Active</span>
+                                <span className="workspace-status">
+                                    Active
+                                </span>
                             </div>
 
                             <h3>{workspace.name}</h3>
@@ -147,9 +171,9 @@ function Workspaces() {
 
                             <div className="workspace-card-footer">
                                 <span>ID: {workspace.id}</span>
-                                <span>Workspace</span>
+                                <span>Open Workspace →</span>
                             </div>
-                        </div>
+                        </button>
                     ))}
                 </div>
             )}

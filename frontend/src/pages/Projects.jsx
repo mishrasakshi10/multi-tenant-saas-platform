@@ -1,30 +1,49 @@
 
 import { useEffect, useState } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../services/api";
 import "./Projects.css";
 
 function Projects() {
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+
+    const selectedWorkspaceId = searchParams.get("workspace");
+
     const [projects, setProjects] = useState([]);
     const [workspaces, setWorkspaces] = useState([]);
 
     const [projectData, setProjectData] = useState({
-        workspace: "",
+        workspace: selectedWorkspaceId || "",
         name: "",
         key: "",
         description: ""
     });
 
+    const [editData, setEditData] = useState({
+        name: "",
+        key: "",
+        description: ""
+    });
+
+    const [editingProjectId, setEditingProjectId] = useState(null);
+
     const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState(false);
+    const [updating, setUpdating] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
+
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
+    // GET LIST
     const getList = (data) => {
         if (Array.isArray(data)) return data;
         if (Array.isArray(data?.results)) return data.results;
         return [];
     };
 
+    // FETCH PROJECTS AND WORKSPACES
     const fetchData = async () => {
         try {
             setLoading(true);
@@ -38,6 +57,7 @@ function Projects() {
 
             setProjects(getList(projectResponse.data));
             setWorkspaces(getList(workspaceResponse.data));
+
         } catch (err) {
             setError(
                 err.response?.data?.detail ||
@@ -52,15 +72,64 @@ function Projects() {
         fetchData();
     }, []);
 
+    // UPDATE WORKSPACE SELECTION
+    useEffect(() => {
+        setProjectData(previous => ({
+            ...previous,
+            workspace: selectedWorkspaceId || ""
+        }));
+    }, [selectedWorkspaceId]);
+
+    // GET WORKSPACE ROLE FOR EACH PROJECT
+    const getProjectRole = (project) => {
+        const workspace = workspaces.find(
+            item => String(item.id) === String(project.workspace)
+        );
+
+        return workspace?.current_user_role;
+    };
+
+    // CHECK ADMIN OR OWNER PERMISSION
+    const canManageProject = (project) => {
+        const role = getProjectRole(project);
+
+        return ["OWNER", "ADMIN"].includes(role);
+    };
+
+    // ROLE LABEL
+    const getRoleLabel = (role) => {
+        switch (role) {
+            case "OWNER":
+                return "Workspace Owner";
+            case "ADMIN":
+                return "Workspace Admin";
+            case "MEMBER":
+                return "Workspace Member";
+            default:
+                return "Workspace Role";
+        }
+    };
+
+    const currentWorkspace = workspaces.find(
+        workspace =>
+            String(workspace.id) === String(selectedWorkspaceId)
+    );
+
+    const currentRole = currentWorkspace?.current_user_role;
+
+    const canManageProjects = ["OWNER", "ADMIN"].includes(currentRole);
+
+    // FORM CHANGE
     const handleChange = (e) => {
         const { name, value } = e.target;
 
-        setProjectData((previous) => ({
+        setProjectData(previous => ({
             ...previous,
             [name]: name === "key" ? value.toUpperCase() : value
         }));
     };
 
+    // CREATE PROJECT
     const handleCreateProject = async (e) => {
         e.preventDefault();
 
@@ -93,14 +162,16 @@ function Projects() {
             });
 
             setProjectData({
-                workspace: "",
+                workspace: selectedWorkspaceId || "",
                 name: "",
                 key: "",
                 description: ""
             });
 
             setSuccess("Project created successfully!");
+
             await fetchData();
+
         } catch (err) {
             const data = err.response?.data;
 
@@ -109,62 +180,236 @@ function Projects() {
                 data?.name?.[0] ||
                 data?.key?.[0] ||
                 data?.workspace?.[0] ||
-                "Unable to create project. Please check your details."
+                "Unable to create project."
             );
         } finally {
             setCreating(false);
         }
     };
 
+    // START EDITING
+    const handleEditClick = (project) => {
+        setEditingProjectId(project.id);
+
+        setEditData({
+            name: project.name || "",
+            key: project.key || "",
+            description: project.description || ""
+        });
+
+        setError("");
+        setSuccess("");
+    };
+
+    // EDIT FORM CHANGE
+    const handleEditChange = (e) => {
+        const { name, value } = e.target;
+
+        setEditData(previous => ({
+            ...previous,
+            [name]: name === "key" ? value.toUpperCase() : value
+        }));
+    };
+
+    // UPDATE PROJECT
+    const handleUpdateProject = async (projectId) => {
+        setError("");
+        setSuccess("");
+
+        if (!editData.name.trim()) {
+            setError("Project name cannot be empty.");
+            return;
+        }
+
+        if (!editData.key.trim()) {
+            setError("Project key cannot be empty.");
+            return;
+        }
+
+        try {
+            setUpdating(true);
+
+            await api.patch(`projects/${projectId}/`, {
+                name: editData.name.trim(),
+                key: editData.key.trim().toUpperCase(),
+                description: editData.description.trim()
+            });
+
+            setEditingProjectId(null);
+
+            setSuccess("Project updated successfully!");
+
+            await fetchData();
+
+        } catch (err) {
+            const data = err.response?.data;
+
+            setError(
+                data?.detail ||
+                data?.name?.[0] ||
+                data?.key?.[0] ||
+                "Unable to update project."
+            );
+        } finally {
+            setUpdating(false);
+        }
+    };
+
+    // CANCEL EDIT
+    const handleCancelEdit = () => {
+        setEditingProjectId(null);
+
+        setEditData({
+            name: "",
+            key: "",
+            description: ""
+        });
+    };
+
+    // DELETE PROJECT
+    const handleDeleteProject = async (projectId) => {
+        const confirmed = window.confirm(
+            "Are you sure you want to delete this project?"
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        setError("");
+        setSuccess("");
+
+        try {
+            setDeletingId(projectId);
+
+            await api.delete(`projects/${projectId}/`);
+
+            setSuccess("Project deleted successfully!");
+
+            await fetchData();
+
+        } catch (err) {
+            setError(
+                err.response?.data?.detail ||
+                "Unable to delete project."
+            );
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
+    // GET WORKSPACE NAME
     const getWorkspaceName = (workspaceId) => {
         const workspace = workspaces.find(
-            (item) => String(item.id) === String(workspaceId)
+            item => String(item.id) === String(workspaceId)
         );
 
         return workspace?.name || `Workspace #${workspaceId}`;
     };
 
+    // FILTER PROJECTS
+    const filteredProjects = selectedWorkspaceId
+        ? projects.filter(
+            project =>
+                String(project.workspace) === String(selectedWorkspaceId)
+        )
+        : projects;
+
     return (
         <div className="projects-page">
 
+            {/* HEADER */}
             <div className="projects-header">
+
                 <div>
                     <p className="projects-breadcrumb">
                         PROJECT MANAGEMENT
                     </p>
-                    <h1>Projects</h1>
+
+                    <h1>
+                        {currentWorkspace
+                            ? currentWorkspace.name
+                            : "Projects"}
+                    </h1>
+
                     <p className="projects-subtitle">
-                        Organize your work and manage projects.
+                        {currentWorkspace
+                            ? "Projects in this workspace."
+                            : "Organize your work and manage projects."}
                     </p>
+
+                    {currentWorkspace && currentRole && (
+                        <div className="workspace-role-info">
+                            <span>Your Role:</span>
+
+                            <strong>
+                                {getRoleLabel(currentRole)}
+                            </strong>
+                        </div>
+                    )}
                 </div>
 
                 <div className="projects-count">
-                    <span>{projects.length}</span>
-                    <small>Total Projects</small>
+                    <span>{filteredProjects.length}</span>
+
+                    <small>
+                        {selectedWorkspaceId
+                            ? "Workspace Projects"
+                            : "Total Projects"}
+                    </small>
                 </div>
+
             </div>
 
+            {/* BACK TO WORKSPACES */}
+            {selectedWorkspaceId && (
+                <button
+                    type="button"
+                    className="project-refresh"
+                    onClick={() => navigate("/workspaces")}
+                    style={{ marginBottom: "20px" }}
+                >
+                    ← Back to Workspaces
+                </button>
+            )}
+
+            {/* ROLE MESSAGE */}
+            {currentWorkspace && currentRole && (
+                <div className="project-role-message">
+                    {canManageProjects
+                        ? "You have workspace administration permissions. You can edit and delete projects."
+                        : "You have workspace member permissions. You can create projects and work on your assigned tasks."}
+                </div>
+            )}
+
+            {/* CREATE PROJECT */}
             <div className="project-create-card">
+
                 <div>
                     <h2>Create a Project</h2>
+
                     <p>
                         Add a new project to one of your workspaces.
                     </p>
                 </div>
 
                 <form onSubmit={handleCreateProject}>
+
                     <div className="project-form-grid">
 
                         <div className="project-form-group">
                             <label>Workspace</label>
+
                             <select
                                 name="workspace"
                                 value={projectData.workspace}
                                 onChange={handleChange}
                             >
-                                <option value="">Select Workspace</option>
+                                <option value="">
+                                    Select Workspace
+                                </option>
 
-                                {workspaces.map((workspace) => (
+                                {workspaces.map(workspace => (
                                     <option
                                         key={workspace.id}
                                         value={workspace.id}
@@ -177,6 +422,7 @@ function Projects() {
 
                         <div className="project-form-group">
                             <label>Project Name</label>
+
                             <input
                                 type="text"
                                 name="name"
@@ -188,6 +434,7 @@ function Projects() {
 
                         <div className="project-form-group">
                             <label>Project Key</label>
+
                             <input
                                 type="text"
                                 name="key"
@@ -200,6 +447,7 @@ function Projects() {
 
                         <div className="project-form-group project-description">
                             <label>Description</label>
+
                             <textarea
                                 name="description"
                                 placeholder="Describe your project..."
@@ -218,22 +466,28 @@ function Projects() {
                     >
                         {creating ? "Creating..." : "+ Create Project"}
                     </button>
-                </form>
 
-                {error && <p className="project-error">{error}</p>}
-                {success && <p className="project-success">{success}</p>}
+                </form>
 
                 {workspaces.length === 0 && !loading && (
                     <p className="project-error">
                         Create a workspace before creating a project.
                     </p>
                 )}
+
             </div>
 
+            {/* PROJECT LIST HEADER */}
             <div className="project-list-header">
+
                 <div>
                     <h2>Your Projects</h2>
-                    <p>Projects across your available workspaces.</p>
+
+                    <p>
+                        {currentWorkspace
+                            ? `Projects belonging to ${currentWorkspace.name}.`
+                            : "Projects across your available workspaces."}
+                    </p>
                 </div>
 
                 <button
@@ -242,52 +496,227 @@ function Projects() {
                 >
                     ↻ Refresh
                 </button>
+
             </div>
 
+            {/* MESSAGES */}
+            {error && (
+                <p className="project-error">
+                    {error}
+                </p>
+            )}
+
+            {success && (
+                <p className="project-success">
+                    {success}
+                </p>
+            )}
+
+            {/* PROJECT LIST */}
             {loading ? (
                 <div className="project-empty">
                     Loading projects...
                 </div>
-            ) : projects.length === 0 ? (
+
+            ) : filteredProjects.length === 0 ? (
+
                 <div className="project-empty">
                     <div className="project-empty-icon">◫</div>
-                    <h3>No projects yet</h3>
-                    <p>Create your first project using the form above.</p>
+
+                    <h3>No projects in this workspace</h3>
+
+                    <p>
+                        Create a project using the form above.
+                    </p>
                 </div>
+
             ) : (
+
                 <div className="project-grid">
-                    {projects.map((project) => (
-                        <div className="project-card" key={project.id}>
-                            <div className="project-card-top">
-                                <div className="project-card-icon">
-                                    ◫
+
+                    {filteredProjects.map(project => {
+
+                        const canManage = canManageProject(project);
+
+                        const isEditing =
+                            editingProjectId === project.id;
+
+                        return (
+                            <div
+                                className="project-card"
+                                key={project.id}
+                            >
+
+                                <div className="project-card-top">
+
+                                    <div className="project-card-icon">
+                                        ◫
+                                    </div>
+
+                                    <span className="project-card-key">
+                                        {project.key || "PROJECT"}
+                                    </span>
+
                                 </div>
-                                <span className="project-card-key">
-                                    {project.key || "PROJECT"}
-                                </span>
+
+                                {isEditing ? (
+
+                                    /* EDIT FORM */
+                                    <div style={{ marginTop: "15px" }}>
+
+                                        <h3>Edit Project</h3>
+
+                                        <div className="project-form-group">
+                                            <label>Project Name</label>
+
+                                            <input
+                                                type="text"
+                                                name="name"
+                                                value={editData.name}
+                                                onChange={handleEditChange}
+                                            />
+                                        </div>
+
+                                        <div className="project-form-group">
+                                            <label>Project Key</label>
+
+                                            <input
+                                                type="text"
+                                                name="key"
+                                                value={editData.key}
+                                                onChange={handleEditChange}
+                                                maxLength={10}
+                                            />
+                                        </div>
+
+                                        <div className="project-form-group">
+                                            <label>Description</label>
+
+                                            <textarea
+                                                name="description"
+                                                rows={3}
+                                                value={editData.description}
+                                                onChange={handleEditChange}
+                                            />
+                                        </div>
+
+                                        <div style={{
+                                            display: "flex",
+                                            gap: "10px",
+                                            marginTop: "15px"
+                                        }}>
+                                            <button
+                                                type="button"
+                                                className="project-create-button"
+                                                disabled={updating}
+                                                onClick={() =>
+                                                    handleUpdateProject(project.id)
+                                                }
+                                            >
+                                                {updating ? "Saving..." : "Save Changes"}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                className="project-refresh"
+                                                onClick={handleCancelEdit}
+                                                disabled={updating}
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+
+                                    </div>
+
+                                ) : (
+
+                                    <>
+                                        <h3>{project.name}</h3>
+
+                                        <p className="project-card-description">
+                                            {project.description ||
+                                                "No description added."}
+                                        </p>
+
+                                        <div className="project-workspace">
+                                            <span>Workspace</span>
+
+                                            <strong>
+                                                {getWorkspaceName(project.workspace)}
+                                            </strong>
+                                        </div>
+
+                                        <div className="project-card-footer">
+                                            <span>
+                                                Project ID: {project.id}
+                                            </span>
+
+                                            <span>
+                                                {project.status || "Active"}
+                                            </span>
+                                        </div>
+
+                                        {/* ROLE-BASED ACTIONS */}
+                                        {canManage && (
+                                            <div style={{
+                                                display: "flex",
+                                                gap: "10px",
+                                                marginTop: "18px"
+                                            }}>
+
+                                                <button
+                                                    type="button"
+                                                    className="project-refresh"
+                                                    onClick={() =>
+                                                        handleEditClick(project)
+                                                    }
+                                                >
+                                                    Edit
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleDeleteProject(project.id)
+                                                    }
+                                                    disabled={deletingId === project.id}
+                                                    style={{
+                                                        background: "#fee2e2",
+                                                        color: "#b91c1c",
+                                                        border: "none",
+                                                        padding: "9px 15px",
+                                                        borderRadius: "7px",
+                                                        cursor: "pointer"
+                                                    }}
+                                                >
+                                                    {deletingId === project.id
+                                                        ? "Deleting..."
+                                                        : "Delete"}
+                                                </button>
+
+                                            </div>
+                                        )}
+
+                                        {!canManage && (
+                                            <p style={{
+                                                marginTop: "15px",
+                                                fontSize: "12px",
+                                                color: "#64748b"
+                                            }}>
+                                                Member access – Edit and Delete
+                                                permissions are not available.
+                                            </p>
+                                        )}
+                                    </>
+
+                                )}
+
                             </div>
+                        );
+                    })}
 
-                            <h3>{project.name}</h3>
-
-                            <p className="project-card-description">
-                                {project.description ||
-                                    "No description added."}
-                            </p>
-
-                            <div className="project-workspace">
-                                <span>Workspace</span>
-                                <strong>
-                                    {getWorkspaceName(project.workspace)}
-                                </strong>
-                            </div>
-
-                            <div className="project-card-footer">
-                                <span>Project ID: {project.id}</span>
-                                <span>{project.status || "Active"}</span>
-                            </div>
-                        </div>
-                    ))}
                 </div>
+
             )}
 
         </div>

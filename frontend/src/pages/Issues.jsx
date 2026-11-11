@@ -8,6 +8,35 @@ function Issues() {
     const [projects, setProjects] = useState([]);
     const [boards, setBoards] = useState([]);
     const [sprints, setSprints] = useState([]);
+    const [comments, setComments] = useState([]);
+    const [activities, setActivities] = useState([]);
+
+    const [selectedIssue, setSelectedIssue] = useState(null);
+
+    // EDIT ISSUE STATES
+    const [editingIssue, setEditingIssue] = useState(null);
+    const [updating, setUpdating] = useState(false);
+    const [editError, setEditError] = useState("");
+    const [editSuccess, setEditSuccess] = useState("");
+
+    const [editData, setEditData] = useState({
+        title: "",
+        description: "",
+        issue_type: "task",
+        priority: "medium",
+        status: "todo",
+        due_date: ""
+    });
+
+    const [commentText, setCommentText] = useState("");
+    const [commentLoading, setCommentLoading] = useState(false);
+    const [commentSubmitting, setCommentSubmitting] = useState(false);
+    const [commentError, setCommentError] = useState("");
+    const [commentSuccess, setCommentSuccess] = useState("");
+
+    const [activityLoading, setActivityLoading] = useState(false);
+    const [activityError, setActivityError] = useState("");
+    const [showActivity, setShowActivity] = useState(false);
 
     const [issueData, setIssueData] = useState({
         project: "",
@@ -32,6 +61,40 @@ function Issues() {
         return [];
     };
 
+    const fetchComments = async () => {
+        try {
+            setCommentLoading(true);
+            setCommentError("");
+
+            const response = await api.get("projects/comments/");
+            setComments(getList(response.data));
+        } catch (err) {
+            setCommentError(
+                err.response?.data?.detail ||
+                "Unable to load comments."
+            );
+        } finally {
+            setCommentLoading(false);
+        }
+    };
+
+    const fetchActivities = async () => {
+        try {
+            setActivityLoading(true);
+            setActivityError("");
+
+            const response = await api.get("projects/activities/");
+            setActivities(getList(response.data));
+        } catch (err) {
+            setActivityError(
+                err.response?.data?.detail ||
+                "Unable to load activity history."
+            );
+        } finally {
+            setActivityLoading(false);
+        }
+    };
+
     const fetchData = async () => {
         try {
             setLoading(true);
@@ -53,6 +116,11 @@ function Issues() {
             setProjects(getList(projectResponse.data));
             setBoards(getList(boardResponse.data));
             setSprints(getList(sprintResponse.data));
+
+            await Promise.all([
+                fetchComments(),
+                fetchActivities()
+            ]);
         } catch (err) {
             setError(
                 err.response?.data?.detail ||
@@ -67,6 +135,7 @@ function Issues() {
         fetchData();
     }, []);
 
+    // CREATE ISSUE FORM
     const handleChange = (e) => {
         const { name, value } = e.target;
 
@@ -152,6 +221,151 @@ function Issues() {
         }
     };
 
+    // OPEN EDIT FORM
+    const handleStartEdit = (issue) => {
+        setEditingIssue(issue);
+
+        setEditData({
+            title: issue.title || "",
+            description: issue.description || "",
+            issue_type: issue.issue_type || "task",
+            priority: issue.priority || "medium",
+            status: issue.status || "todo",
+            due_date: issue.due_date
+                ? String(issue.due_date).slice(0, 10)
+                : ""
+        });
+
+        setEditError("");
+        setEditSuccess("");
+    };
+
+    // EDIT FORM INPUT CHANGE
+    const handleEditChange = (e) => {
+        const { name, value } = e.target;
+
+        setEditData((previous) => ({
+            ...previous,
+            [name]: value
+        }));
+    };
+
+    // UPDATE ISSUE
+    const handleUpdateIssue = async (e) => {
+        e.preventDefault();
+
+        setEditError("");
+        setEditSuccess("");
+
+        if (!editData.title.trim()) {
+            setEditError("Issue title is required.");
+            return;
+        }
+
+        try {
+            setUpdating(true);
+
+            await api.patch(
+                `projects/issues/${editingIssue.id}/`,
+                {
+                    title: editData.title.trim(),
+                    description: editData.description.trim(),
+                    issue_type: editData.issue_type,
+                    priority: editData.priority,
+                    status: editData.status,
+                    due_date: editData.due_date || null
+                }
+            );
+
+            setEditSuccess("Issue updated successfully!");
+
+            setEditingIssue(null);
+
+            setEditData({
+                title: "",
+                description: "",
+                issue_type: "task",
+                priority: "medium",
+                status: "todo",
+                due_date: ""
+            });
+
+            await fetchData();
+
+        } catch (err) {
+            const data = err.response?.data;
+
+            setEditError(
+                data?.detail ||
+                data?.title?.[0] ||
+                data?.status?.[0] ||
+                data?.priority?.[0] ||
+                "Unable to update issue. Please try again."
+            );
+        } finally {
+            setUpdating(false);
+        }
+    };
+
+    // CANCEL EDIT
+    const handleCancelEdit = () => {
+        setEditingIssue(null);
+        setEditError("");
+        setEditSuccess("");
+    };
+
+    const handleOpenComments = (issue) => {
+        if (selectedIssue?.id === issue.id) {
+            setSelectedIssue(null);
+            return;
+        }
+
+        setSelectedIssue(issue);
+        setCommentText("");
+        setCommentError("");
+        setCommentSuccess("");
+    };
+
+    const handleAddComment = async (e) => {
+        e.preventDefault();
+
+        setCommentError("");
+        setCommentSuccess("");
+
+        if (!commentText.trim()) {
+            setCommentError("Please enter a comment.");
+            return;
+        }
+
+        try {
+            setCommentSubmitting(true);
+
+            await api.post("projects/comments/", {
+                issue: selectedIssue.id,
+                body: commentText.trim()
+            });
+
+            setCommentText("");
+            setCommentSuccess("Comment added successfully!");
+
+            await Promise.all([
+                fetchComments(),
+                fetchActivities()
+            ]);
+        } catch (err) {
+            const data = err.response?.data;
+
+            setCommentError(
+                data?.detail ||
+                data?.body?.[0] ||
+                data?.issue?.[0] ||
+                "Unable to add comment."
+            );
+        } finally {
+            setCommentSubmitting(false);
+        }
+    };
+
     const getProjectName = (id) =>
         projects.find((item) => String(item.id) === String(id))?.name ||
         `Project #${id}`;
@@ -165,6 +379,60 @@ function Issues() {
 
     const getStatusClass = (status) =>
         `issue-status issue-status-${status}`;
+
+    const formatDate = (date) => {
+        if (!date) return "";
+
+        return new Date(date).toLocaleString("en-IN", {
+            dateStyle: "medium",
+            timeStyle: "short"
+        });
+    };
+
+    const getActivityText = (activity) => {
+        const actor = activity.actor
+            ? `User #${activity.actor}`
+            : "A user";
+
+        const field = activity.field_name
+            ? activity.field_name.replaceAll("_", " ")
+            : "";
+
+        switch (activity.action) {
+            case "created":
+                return `${actor} created issue "${activity.new_value || ""}"`;
+
+            case "status_changed":
+                return `${actor} changed status from ${activity.old_value} to ${activity.new_value}`;
+
+            case "assigned":
+                return `${actor} changed the assignee`;
+
+            case "commented":
+                return `${actor} added a comment`;
+
+            case "attachment_added":
+                return `${actor} added an attachment`;
+
+            case "updated":
+                return `${actor} updated ${field || "issue details"}`;
+
+            default:
+                return `${actor} performed an action`;
+        }
+    };
+
+    const issueComments = selectedIssue
+        ? comments.filter(
+            (comment) => String(comment.issue) === String(selectedIssue.id)
+        )
+        : [];
+
+    const visibleActivities = selectedIssue
+        ? activities.filter(
+            (activity) => String(activity.issue) === String(selectedIssue.id)
+        )
+        : activities;
 
     return (
         <div className="issues-page">
@@ -183,6 +451,8 @@ function Issues() {
                     <small>Total Issues</small>
                 </div>
             </div>
+
+            {/* CREATE ISSUE */}
 
             <div className="issue-create-card">
                 <h2>Create an Issue</h2>
@@ -328,13 +598,148 @@ function Issues() {
                 {success && <p className="issue-success">{success}</p>}
             </div>
 
+            {/* EDIT ISSUE FORM */}
+
+            {editingIssue && (
+                <div className="issue-edit-card">
+                    <div className="issue-edit-header">
+                        <div>
+                            <p className="issues-breadcrumb">UPDATE ISSUE</p>
+                            <h2>Edit Issue #{editingIssue.id}</h2>
+                            <p>Update issue details and save your changes.</p>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="issue-refresh"
+                            onClick={handleCancelEdit}
+                        >
+                            Cancel
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleUpdateIssue}>
+                        <div className="issue-form-grid">
+
+                            <div className="issue-form-group">
+                                <label>Issue Title *</label>
+                                <input
+                                    type="text"
+                                    name="title"
+                                    value={editData.title}
+                                    onChange={handleEditChange}
+                                    placeholder="Enter issue title"
+                                    required
+                                />
+                            </div>
+
+                            <div className="issue-form-group">
+                                <label>Issue Type</label>
+                                <select
+                                    name="issue_type"
+                                    value={editData.issue_type}
+                                    onChange={handleEditChange}
+                                >
+                                    <option value="task">Task</option>
+                                    <option value="bug">Bug</option>
+                                    <option value="story">Story</option>
+                                </select>
+                            </div>
+
+                            <div className="issue-form-group">
+                                <label>Priority</label>
+                                <select
+                                    name="priority"
+                                    value={editData.priority}
+                                    onChange={handleEditChange}
+                                >
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select>
+                            </div>
+
+                            <div className="issue-form-group">
+                                <label>Status</label>
+                                <select
+                                    name="status"
+                                    value={editData.status}
+                                    onChange={handleEditChange}
+                                >
+                                    <option value="todo">To Do</option>
+                                    <option value="in_progress">In Progress</option>
+                                    <option value="done">Done</option>
+                                </select>
+                            </div>
+
+                            <div className="issue-form-group">
+                                <label>Due Date</label>
+                                <input
+                                    type="date"
+                                    name="due_date"
+                                    value={editData.due_date}
+                                    onChange={handleEditChange}
+                                />
+                            </div>
+
+                            <div className="issue-form-group issue-description">
+                                <label>Description</label>
+                                <textarea
+                                    name="description"
+                                    rows={3}
+                                    value={editData.description}
+                                    onChange={handleEditChange}
+                                    placeholder="Describe the issue..."
+                                />
+                            </div>
+
+                        </div>
+
+                        <div className="issue-edit-actions">
+                            <button
+                                type="submit"
+                                className="issue-create-button"
+                                disabled={updating}
+                            >
+                                {updating ? "Updating..." : "Save Changes"}
+                            </button>
+
+                            <button
+                                type="button"
+                                className="issue-refresh"
+                                onClick={handleCancelEdit}
+                                disabled={updating}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+
+                        {editError && (
+                            <p className="issue-error">{editError}</p>
+                        )}
+
+                    </form>
+                </div>
+            )}
+
+            {editSuccess && (
+                <p className="issue-success">{editSuccess}</p>
+            )}
+
+            {/* ISSUE LIST */}
+
             <div className="issue-list-header">
                 <div>
                     <h2>All Issues</h2>
                     <p>Issues across your available projects.</p>
                 </div>
 
-                <button className="issue-refresh" onClick={fetchData}>
+                <button
+                    className="issue-refresh"
+                    onClick={fetchData}
+                    type="button"
+                >
                     ↻ Refresh
                 </button>
             </div>
@@ -358,6 +763,8 @@ function Issues() {
                                 <th>Type</th>
                                 <th>Priority</th>
                                 <th>Status</th>
+                                <th>Comments</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
 
@@ -368,18 +775,43 @@ function Issues() {
                                         <strong>{issue.title}</strong>
                                         <small>#{issue.id}</small>
                                     </td>
+
                                     <td>{getProjectName(issue.project)}</td>
                                     <td>{getBoardName(issue.board)}</td>
                                     <td>{issue.issue_type}</td>
+
                                     <td>
                                         <span className={getPriorityClass(issue.priority)}>
                                             {issue.priority}
                                         </span>
                                     </td>
+
                                     <td>
                                         <span className={getStatusClass(issue.status)}>
                                             {issue.status.replace("_", " ")}
                                         </span>
+                                    </td>
+
+                                    <td>
+                                        <button
+                                            type="button"
+                                            className="issue-comments-button"
+                                            onClick={() => handleOpenComments(issue)}
+                                        >
+                                            {selectedIssue?.id === issue.id
+                                                ? "Close"
+                                                : "View Comments"}
+                                        </button>
+                                    </td>
+
+                                    <td>
+                                        <button
+                                            type="button"
+                                            className="issue-edit-button"
+                                            onClick={() => handleStartEdit(issue)}
+                                        >
+                                            Edit
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -387,6 +819,167 @@ function Issues() {
                     </table>
                 </div>
             )}
+
+            {/* ISSUE COMMENTS */}
+
+            {selectedIssue && (
+                <div className="issue-comments-card">
+                    <div className="issue-comments-header">
+                        <div>
+                            <p className="issues-breadcrumb">COLLABORATION</p>
+                            <h2>Comments</h2>
+                            <p>
+                                Issue #{selectedIssue.id} — {selectedIssue.title}
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="issue-refresh"
+                            onClick={fetchComments}
+                        >
+                            ↻ Refresh
+                        </button>
+                    </div>
+
+                    <div className="issue-comments-list">
+                        {commentLoading ? (
+                            <p>Loading comments...</p>
+                        ) : commentError ? (
+                            <p className="issue-error">{commentError}</p>
+                        ) : issueComments.length === 0 ? (
+                            <div className="issue-no-comments">
+                                No comments yet. Start the discussion!
+                            </div>
+                        ) : (
+                            issueComments.map((comment) => (
+                                <div className="issue-comment" key={comment.id}>
+                                    <div className="issue-comment-avatar">
+                                        {String(comment.author || "?").charAt(0)}
+                                    </div>
+
+                                    <div className="issue-comment-content">
+                                        <div className="issue-comment-meta">
+                                            <strong>
+                                                User #{comment.author}
+                                            </strong>
+                                            <small>{formatDate(comment.created_at)}</small>
+                                        </div>
+
+                                        <p>{comment.body}</p>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+
+                    <form
+                        className="issue-comment-form"
+                        onSubmit={handleAddComment}
+                    >
+                        <label htmlFor="issue-comment-input">
+                            Add a comment
+                        </label>
+
+                        <textarea
+                            id="issue-comment-input"
+                            rows={3}
+                            placeholder="Write your comment..."
+                            value={commentText}
+                            onChange={(e) => setCommentText(e.target.value)}
+                        />
+
+                        <button
+                            type="submit"
+                            className="issue-create-button"
+                            disabled={commentSubmitting || !commentText.trim()}
+                        >
+                            {commentSubmitting ? "Posting..." : "Post Comment"}
+                        </button>
+
+                        {commentError && (
+                            <p className="issue-error">{commentError}</p>
+                        )}
+
+                        {commentSuccess && (
+                            <p className="issue-success">{commentSuccess}</p>
+                        )}
+                    </form>
+                </div>
+            )}
+
+            {/* ACTIVITY LOG */}
+
+            <div className="issue-activity-card">
+                <div className="issue-activity-header">
+                    <div>
+                        <p className="issues-breadcrumb">PROJECT HISTORY</p>
+                        <h2>Activity Log</h2>
+                        <p>
+                            Track important actions performed on your issues.
+                        </p>
+                    </div>
+
+                    <div className="issue-activity-actions">
+                        <button
+                            type="button"
+                            className="issue-refresh"
+                            onClick={() => setShowActivity(!showActivity)}
+                        >
+                            {showActivity ? "Hide Activity" : "View Activity"}
+                        </button>
+
+                        <button
+                            type="button"
+                            className="issue-refresh"
+                            onClick={fetchActivities}
+                        >
+                            ↻ Refresh
+                        </button>
+                    </div>
+                </div>
+
+                {showActivity && (
+                    <div className="issue-activity-list">
+                        {activityLoading ? (
+                            <p>Loading activity history...</p>
+                        ) : activityError ? (
+                            <p className="issue-error">{activityError}</p>
+                        ) : visibleActivities.length === 0 ? (
+                            <div className="issue-no-comments">
+                                No activity recorded yet.
+                            </div>
+                        ) : (
+                            visibleActivities.map((activity) => (
+                                <div
+                                    className="issue-activity-item"
+                                    key={activity.id}
+                                >
+                                    <div className="issue-activity-dot">•</div>
+
+                                    <div className="issue-activity-content">
+                                        <p>
+                                            {getActivityText(activity)}
+                                        </p>
+
+                                        <small>
+                                            Issue #{activity.issue}
+                                            {" · "}
+                                            {formatDate(activity.created_at)}
+                                        </small>
+
+                                        {activity.action === "commented" && activity.new_value && (
+                                            <div className="issue-activity-detail">
+                                                {activity.new_value}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                )}
+            </div>
 
         </div>
     );
