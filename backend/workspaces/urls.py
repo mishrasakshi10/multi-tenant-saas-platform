@@ -5,6 +5,7 @@ from .views import (
     WorkspaceListCreateAPIView,
     WorkspaceDetailAPIView,
     MembershipListCreateAPIView,
+    MembershipDetailAPIView,
 )
 
 urlpatterns = [
@@ -22,5 +23,10 @@ urlpatterns = [
         '<int:workspace_id>/members/',
         MembershipListCreateAPIView.as_view(),
         name='workspace-members'
+    ),
+    path(
+        '<int:workspace_id>/members/<int:pk>/',
+        MembershipDetailAPIView.as_view(),
+        name='membership-detail'
     ),
 ]

@@ -9,7 +9,13 @@ from .models import Workspace, Membership
 User = get_user_model()
 
 
+# =========================
+# WORKSPACE SERIALIZER
+# =========================
+
 class WorkspaceSerializer(serializers.ModelSerializer):
+
+    current_user_role = serializers.SerializerMethodField()
 
     class Meta:
         model = Workspace
@@ -20,17 +26,35 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             'created_by',
             'created_at',
             'updated_at',
+            'current_user_role',
         ]
+
         read_only_fields = [
             'id',
             'created_by',
             'created_at',
             'updated_at',
             'slug',
+            'current_user_role',
         ]
+
+    def get_current_user_role(self, obj):
+
+        request = self.context.get('request')
+
+        if not request or not request.user.is_authenticated:
+            return None
+
+        membership = Membership.objects.filter(
+            workspace=obj,
+            user=request.user
+        ).first()
+
+        return membership.role if membership else None
 
     @transaction.atomic
     def create(self, validated_data):
+
         user = self.context['request'].user
 
         name = validated_data['name']
@@ -40,8 +64,11 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         counter = 1
 
         while Workspace.objects.filter(slug=slug).exists():
+
             suffix = f"-{counter}"
+
             slug = f"{base_slug[:160 - len(suffix)]}{suffix}"
+
             counter += 1
 
         workspace = Workspace.objects.create(
@@ -59,6 +86,10 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         return workspace
 
 
+# =========================
+# MEMBERSHIP SERIALIZER
+# =========================
+
 class MembershipSerializer(serializers.ModelSerializer):
 
     user = serializers.PrimaryKeyRelatedField(
@@ -74,12 +105,14 @@ class MembershipSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Membership
+
         fields = [
             'id',
             'user',
             'role',
             'joined_at',
         ]
+
         read_only_fields = [
             'id',
             'joined_at',
@@ -100,28 +133,49 @@ class MembershipSerializer(serializers.ModelSerializer):
                 "You are not a workspace member."
             )
 
-        requested_role = attrs['role']
+        # =========================
+        # UPDATE VALIDATION
+        # =========================
 
-        if (
-            current_membership.role == Membership.Role.ADMIN
-            and requested_role != Membership.Role.MEMBER
-        ):
-            raise serializers.ValidationError(
-                "Admins can only add Members."
-            )
+        if self.instance:
 
-        if current_membership.role not in [
-            Membership.Role.OWNER,
-            Membership.Role.ADMIN,
-        ]:
+            if current_membership.role != Membership.Role.OWNER:
+                raise serializers.ValidationError(
+                    "Only the workspace Owner can update member roles."
+                )
+
+            if self.instance.role == Membership.Role.OWNER:
+                raise serializers.ValidationError(
+                    "Owner membership cannot be changed."
+                )
+
+            return attrs
+
+        # =========================
+        # CREATE VALIDATION
+        # =========================
+
+        requested_role = attrs.get('role')
+        requested_user = attrs.get('user')
+
+        if current_membership.role == Membership.Role.ADMIN:
+
+            if requested_role != Membership.Role.MEMBER:
+                raise serializers.ValidationError(
+                    "Admins can only add Members."
+                )
+
+        elif current_membership.role != Membership.Role.OWNER:
+
             raise serializers.ValidationError(
                 "You do not have permission to add members."
             )
 
         if Membership.objects.filter(
             workspace=workspace,
-            user=attrs['user']
+            user=requested_user
         ).exists():
+
             raise serializers.ValidationError(
                 "This user is already a workspace member."
             )
