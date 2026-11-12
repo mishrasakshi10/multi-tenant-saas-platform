@@ -1,11 +1,15 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import "./Issues.css";
 
 function Issues() {
     const { selectedWorkspaceId } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const requestedIssueId = searchParams.get("issue");
 
     const [issues, setIssues] = useState([]);
     const [projects, setProjects] = useState([]);
@@ -184,6 +188,33 @@ function Issues() {
         setEditError("");
         setEditSuccess("");
     }, [selectedWorkspaceId]);
+
+    // OPEN ISSUE AUTOMATICALLY FROM NOTIFICATION URL
+    useEffect(() => {
+        if (!requestedIssueId || loading || !selectedWorkspaceId) {
+            return;
+        }
+
+        const issue = filteredIssues.find(
+            (item) => String(item.id) === String(requestedIssueId)
+        );
+
+        if (issue) {
+            setSelectedIssue(issue);
+            setCommentText("");
+            setCommentError("");
+            setCommentSuccess("");
+
+            // Remove issue parameter after opening the issue
+            setSearchParams({}, { replace: true });
+        }
+    }, [
+        requestedIssueId,
+        loading,
+        selectedWorkspaceId,
+        filteredIssues,
+        setSearchParams
+    ]);
 
     // CREATE ISSUE FORM
     const handleChange = (e) => {

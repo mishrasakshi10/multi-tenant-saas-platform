@@ -9,7 +9,6 @@ import {
 
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
-
 import "./AppLayout.css";
 
 function AppLayout() {
@@ -24,6 +23,9 @@ function AppLayout() {
 
     const [workspaces, setWorkspaces] = useState([]);
     const [workspaceLoading, setWorkspaceLoading] = useState(true);
+
+    const [notifications, setNotifications] = useState([]);
+    const [notificationLoading, setNotificationLoading] = useState(false);
 
     const getList = (data) => {
         if (Array.isArray(data)) return data;
@@ -82,13 +84,66 @@ function AppLayout() {
         setSelectedWorkspaceId,
     ]);
 
+    // LOAD NOTIFICATIONS
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            setNotificationLoading(true);
+
+            try {
+                const response = await api.get("projects/notifications/");
+                setNotifications(getList(response.data));
+            } catch (error) {
+                console.error("Unable to load notifications:", error);
+                setNotifications([]);
+            } finally {
+                setNotificationLoading(false);
+            }
+        };
+
+        fetchNotifications();
+    }, [selectedWorkspaceId]);
+
+    // FILTER BY SELECTED WORKSPACE
+    const visibleNotifications = notifications.filter((notification) => {
+        if (!selectedWorkspaceId) return true;
+
+        return (
+            String(notification.workspace) ===
+            String(selectedWorkspaceId)
+        );
+    });
+
+    const unreadCount = visibleNotifications.filter(
+        (notification) => !notification.is_read
+    ).length;
+
+    // MARK AS READ
+    const handleMarkAsRead = async (notificationId) => {
+        try {
+            await api.patch(
+                `projects/notifications/${notificationId}/`,
+                { is_read: true }
+            );
+
+            setNotifications((previous) =>
+                previous.map((notification) =>
+                    notification.id === notificationId
+                        ? { ...notification, is_read: true }
+                        : notification
+                )
+            );
+        } catch (error) {
+            console.error("Unable to mark notification as read:", error);
+            alert("Unable to update notification. Please try again.");
+        }
+    };
+
     // CHANGE WORKSPACE
     const handleWorkspaceChange = (event) => {
         const workspaceId = event.target.value;
 
         setSelectedWorkspaceId(workspaceId);
 
-        // Keep Projects URL compatible with its existing filter
         if (location.pathname === "/projects") {
             navigate(
                 workspaceId
@@ -131,18 +186,8 @@ function AppLayout() {
                 </div>
 
                 {/* WORKSPACE SWITCHER */}
-                <div style={{ padding: "18px 16px 10px" }}>
-                    <label
-                        htmlFor="global-workspace"
-                        style={{
-                            display: "block",
-                            color: "#94a3b8",
-                            fontSize: "11px",
-                            fontWeight: "700",
-                            letterSpacing: "1px",
-                            marginBottom: "9px",
-                        }}
-                    >
+                <div className="workspace-switcher">
+                    <label htmlFor="global-workspace">
                         CURRENT WORKSPACE
                     </label>
 
@@ -151,17 +196,6 @@ function AppLayout() {
                         value={selectedWorkspaceId || ""}
                         onChange={handleWorkspaceChange}
                         disabled={workspaceLoading || workspaces.length === 0}
-                        style={{
-                            width: "100%",
-                            padding: "11px 10px",
-                            borderRadius: "8px",
-                            border: "1px solid #334155",
-                            background: "#1e293b",
-                            color: "#f8fafc",
-                            fontSize: "13px",
-                            outline: "none",
-                            cursor: "pointer",
-                        }}
                     >
                         {workspaceLoading ? (
                             <option value="">Loading workspaces...</option>
@@ -219,7 +253,16 @@ function AppLayout() {
             </aside>
 
             <main className="app-main">
-                <Outlet />
+                <div className="app-page-content">
+                    <Outlet
+                        context={{
+                            visibleNotifications,
+                            notificationLoading,
+                            unreadCount,
+                            handleMarkAsRead,
+                        }}
+                    />
+                </div>
             </main>
 
         </div>
