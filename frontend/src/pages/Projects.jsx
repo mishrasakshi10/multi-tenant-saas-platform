@@ -1,14 +1,15 @@
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
 import api from "../services/api";
 import "./Projects.css";
 
 function Projects() {
-    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
 
-    const selectedWorkspaceId = searchParams.get("workspace");
+    const { selectedWorkspaceId } = useAuth();
 
     const [projects, setProjects] = useState([]);
     const [workspaces, setWorkspaces] = useState([]);
@@ -36,7 +37,6 @@ function Projects() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    // GET LIST
     const getList = (data) => {
         if (Array.isArray(data)) return data;
         if (Array.isArray(data?.results)) return data.results;
@@ -46,7 +46,6 @@ function Projects() {
     // FETCH PROJECTS AND WORKSPACES
     const fetchData = async () => {
         try {
-            setLoading(true);
             setError("");
 
             const [projectResponse, workspaceResponse] =
@@ -72,15 +71,29 @@ function Projects() {
         fetchData();
     }, []);
 
-    // UPDATE WORKSPACE SELECTION
+    // UPDATE CREATE FORM WHEN WORKSPACE CHANGES
     useEffect(() => {
         setProjectData(previous => ({
             ...previous,
             workspace: selectedWorkspaceId || ""
         }));
+
+        setEditingProjectId(null);
+        setError("");
+        setSuccess("");
     }, [selectedWorkspaceId]);
 
-    // GET WORKSPACE ROLE FOR EACH PROJECT
+    // CURRENT WORKSPACE
+    const currentWorkspace = workspaces.find(
+        workspace =>
+            String(workspace.id) === String(selectedWorkspaceId)
+    );
+
+    const currentRole = currentWorkspace?.current_user_role;
+
+    const canManageProjects = ["OWNER", "ADMIN"].includes(currentRole);
+
+    // GET PROJECT ROLE
     const getProjectRole = (project) => {
         const workspace = workspaces.find(
             item => String(item.id) === String(project.workspace)
@@ -89,11 +102,8 @@ function Projects() {
         return workspace?.current_user_role;
     };
 
-    // CHECK ADMIN OR OWNER PERMISSION
     const canManageProject = (project) => {
-        const role = getProjectRole(project);
-
-        return ["OWNER", "ADMIN"].includes(role);
+        return ["OWNER", "ADMIN"].includes(getProjectRole(project));
     };
 
     // ROLE LABEL
@@ -109,15 +119,6 @@ function Projects() {
                 return "Workspace Role";
         }
     };
-
-    const currentWorkspace = workspaces.find(
-        workspace =>
-            String(workspace.id) === String(selectedWorkspaceId)
-    );
-
-    const currentRole = currentWorkspace?.current_user_role;
-
-    const canManageProjects = ["OWNER", "ADMIN"].includes(currentRole);
 
     // FORM CHANGE
     const handleChange = (e) => {
@@ -136,7 +137,7 @@ function Projects() {
         setError("");
         setSuccess("");
 
-        if (!projectData.workspace) {
+        if (!selectedWorkspaceId) {
             setError("Please select a workspace.");
             return;
         }
@@ -155,14 +156,14 @@ function Projects() {
             setCreating(true);
 
             await api.post("projects/", {
-                workspace: Number(projectData.workspace),
+                workspace: Number(selectedWorkspaceId),
                 name: projectData.name.trim(),
                 key: projectData.key.trim().toUpperCase(),
                 description: projectData.description.trim()
             });
 
             setProjectData({
-                workspace: selectedWorkspaceId || "",
+                workspace: selectedWorkspaceId,
                 name: "",
                 key: "",
                 description: ""
@@ -236,7 +237,6 @@ function Projects() {
             });
 
             setEditingProjectId(null);
-
             setSuccess("Project updated successfully!");
 
             await fetchData();
@@ -272,9 +272,7 @@ function Projects() {
             "Are you sure you want to delete this project?"
         );
 
-        if (!confirmed) {
-            return;
-        }
+        if (!confirmed) return;
 
         setError("");
         setSuccess("");
@@ -307,20 +305,18 @@ function Projects() {
         return workspace?.name || `Workspace #${workspaceId}`;
     };
 
-    // FILTER PROJECTS
+    // FILTER PROJECTS BY SELECTED WORKSPACE
     const filteredProjects = selectedWorkspaceId
         ? projects.filter(
             project =>
                 String(project.workspace) === String(selectedWorkspaceId)
         )
-        : projects;
+        : [];
 
     return (
         <div className="projects-page">
 
-            {/* HEADER */}
             <div className="projects-header">
-
                 <div>
                     <p className="projects-breadcrumb">
                         PROJECT MANAGEMENT
@@ -335,33 +331,23 @@ function Projects() {
                     <p className="projects-subtitle">
                         {currentWorkspace
                             ? "Projects in this workspace."
-                            : "Organize your work and manage projects."}
+                            : "Select a workspace to view its projects."}
                     </p>
 
                     {currentWorkspace && currentRole && (
                         <div className="workspace-role-info">
                             <span>Your Role:</span>
-
-                            <strong>
-                                {getRoleLabel(currentRole)}
-                            </strong>
+                            <strong>{getRoleLabel(currentRole)}</strong>
                         </div>
                     )}
                 </div>
 
                 <div className="projects-count">
                     <span>{filteredProjects.length}</span>
-
-                    <small>
-                        {selectedWorkspaceId
-                            ? "Workspace Projects"
-                            : "Total Projects"}
-                    </small>
+                    <small>Workspace Projects</small>
                 </div>
-
             </div>
 
-            {/* BACK TO WORKSPACES */}
             {selectedWorkspaceId && (
                 <button
                     type="button"
@@ -373,7 +359,6 @@ function Projects() {
                 </button>
             )}
 
-            {/* ROLE MESSAGE */}
             {currentWorkspace && currentRole && (
                 <div className="project-role-message">
                     {canManageProjects
@@ -382,19 +367,13 @@ function Projects() {
                 </div>
             )}
 
-            {/* CREATE PROJECT */}
             <div className="project-create-card">
-
                 <div>
                     <h2>Create a Project</h2>
-
-                    <p>
-                        Add a new project to one of your workspaces.
-                    </p>
+                    <p>Add a new project to the selected workspace.</p>
                 </div>
 
                 <form onSubmit={handleCreateProject}>
-
                     <div className="project-form-grid">
 
                         <div className="project-form-group">
@@ -402,21 +381,16 @@ function Projects() {
 
                             <select
                                 name="workspace"
-                                value={projectData.workspace}
-                                onChange={handleChange}
+                                value={selectedWorkspaceId || ""}
+                                disabled
                             >
-                                <option value="">
-                                    Select Workspace
-                                </option>
+                                <option value="">Select Workspace</option>
 
-                                {workspaces.map(workspace => (
-                                    <option
-                                        key={workspace.id}
-                                        value={workspace.id}
-                                    >
-                                        {workspace.name}
+                                {currentWorkspace && (
+                                    <option value={currentWorkspace.id}>
+                                        {currentWorkspace.name}
                                     </option>
-                                ))}
+                                )}
                             </select>
                         </div>
 
@@ -456,17 +430,19 @@ function Projects() {
                                 rows={3}
                             />
                         </div>
-
                     </div>
 
                     <button
                         type="submit"
                         className="project-create-button"
-                        disabled={creating || workspaces.length === 0}
+                        disabled={
+                            creating ||
+                            !selectedWorkspaceId ||
+                            workspaces.length === 0
+                        }
                     >
                         {creating ? "Creating..." : "+ Create Project"}
                     </button>
-
                 </form>
 
                 {workspaces.length === 0 && !loading && (
@@ -474,19 +450,16 @@ function Projects() {
                         Create a workspace before creating a project.
                     </p>
                 )}
-
             </div>
 
-            {/* PROJECT LIST HEADER */}
             <div className="project-list-header">
-
                 <div>
                     <h2>Your Projects</h2>
 
                     <p>
                         {currentWorkspace
                             ? `Projects belonging to ${currentWorkspace.name}.`
-                            : "Projects across your available workspaces."}
+                            : "Select a workspace from the sidebar."}
                     </p>
                 </div>
 
@@ -496,79 +469,59 @@ function Projects() {
                 >
                     ↻ Refresh
                 </button>
-
             </div>
 
-            {/* MESSAGES */}
             {error && (
-                <p className="project-error">
-                    {error}
-                </p>
+                <p className="project-error">{error}</p>
             )}
 
             {success && (
-                <p className="project-success">
-                    {success}
-                </p>
+                <p className="project-success">{success}</p>
             )}
 
-            {/* PROJECT LIST */}
             {loading ? (
                 <div className="project-empty">
                     Loading projects...
                 </div>
 
-            ) : filteredProjects.length === 0 ? (
+            ) : !selectedWorkspaceId ? (
+                <div className="project-empty">
+                    <h3>No workspace selected</h3>
+                    <p>Select a workspace from the sidebar dropdown.</p>
+                </div>
 
+            ) : filteredProjects.length === 0 ? (
                 <div className="project-empty">
                     <div className="project-empty-icon">◫</div>
-
                     <h3>No projects in this workspace</h3>
-
-                    <p>
-                        Create a project using the form above.
-                    </p>
+                    <p>Create a project using the form above.</p>
                 </div>
 
             ) : (
-
                 <div className="project-grid">
-
                     {filteredProjects.map(project => {
-
                         const canManage = canManageProject(project);
-
-                        const isEditing =
-                            editingProjectId === project.id;
+                        const isEditing = editingProjectId === project.id;
 
                         return (
                             <div
                                 className="project-card"
                                 key={project.id}
                             >
-
                                 <div className="project-card-top">
-
-                                    <div className="project-card-icon">
-                                        ◫
-                                    </div>
+                                    <div className="project-card-icon">◫</div>
 
                                     <span className="project-card-key">
                                         {project.key || "PROJECT"}
                                     </span>
-
                                 </div>
 
                                 {isEditing ? (
-
-                                    /* EDIT FORM */
                                     <div style={{ marginTop: "15px" }}>
-
                                         <h3>Edit Project</h3>
 
                                         <div className="project-form-group">
                                             <label>Project Name</label>
-
                                             <input
                                                 type="text"
                                                 name="name"
@@ -579,7 +532,6 @@ function Projects() {
 
                                         <div className="project-form-group">
                                             <label>Project Key</label>
-
                                             <input
                                                 type="text"
                                                 name="key"
@@ -591,7 +543,6 @@ function Projects() {
 
                                         <div className="project-form-group">
                                             <label>Description</label>
-
                                             <textarea
                                                 name="description"
                                                 rows={3}
@@ -613,7 +564,9 @@ function Projects() {
                                                     handleUpdateProject(project.id)
                                                 }
                                             >
-                                                {updating ? "Saving..." : "Save Changes"}
+                                                {updating
+                                                    ? "Saving..."
+                                                    : "Save Changes"}
                                             </button>
 
                                             <button
@@ -625,11 +578,8 @@ function Projects() {
                                                 Cancel
                                             </button>
                                         </div>
-
                                     </div>
-
                                 ) : (
-
                                     <>
                                         <h3>{project.name}</h3>
 
@@ -640,7 +590,6 @@ function Projects() {
 
                                         <div className="project-workspace">
                                             <span>Workspace</span>
-
                                             <strong>
                                                 {getWorkspaceName(project.workspace)}
                                             </strong>
@@ -656,14 +605,12 @@ function Projects() {
                                             </span>
                                         </div>
 
-                                        {/* ROLE-BASED ACTIONS */}
                                         {canManage && (
                                             <div style={{
                                                 display: "flex",
                                                 gap: "10px",
                                                 marginTop: "18px"
                                             }}>
-
                                                 <button
                                                     type="button"
                                                     className="project-refresh"
@@ -693,7 +640,6 @@ function Projects() {
                                                         ? "Deleting..."
                                                         : "Delete"}
                                                 </button>
-
                                             </div>
                                         )}
 
@@ -708,17 +654,12 @@ function Projects() {
                                             </p>
                                         )}
                                     </>
-
                                 )}
-
                             </div>
                         );
                     })}
-
                 </div>
-
             )}
-
         </div>
     );
 }

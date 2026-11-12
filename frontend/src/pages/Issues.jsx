@@ -1,9 +1,12 @@
 
 import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
 import "./Issues.css";
 
 function Issues() {
+    const { selectedWorkspaceId } = useAuth();
+
     const [issues, setIssues] = useState([]);
     const [projects, setProjects] = useState([]);
     const [boards, setBoards] = useState([]);
@@ -61,6 +64,7 @@ function Issues() {
         return [];
     };
 
+    // FETCH COMMENTS
     const fetchComments = async () => {
         try {
             setCommentLoading(true);
@@ -78,6 +82,7 @@ function Issues() {
         }
     };
 
+    // FETCH ACTIVITIES
     const fetchActivities = async () => {
         try {
             setActivityLoading(true);
@@ -95,6 +100,7 @@ function Issues() {
         }
     };
 
+    // FETCH ALL DATA
     const fetchData = async () => {
         try {
             setLoading(true);
@@ -135,6 +141,50 @@ function Issues() {
         fetchData();
     }, []);
 
+    // WORKSPACE FILTERING
+    const filteredProjects = selectedWorkspaceId
+        ? projects.filter(
+            (project) =>
+                String(project.workspace) === String(selectedWorkspaceId)
+        )
+        : [];
+
+    const workspaceProjectIds = filteredProjects.map(
+        (project) => String(project.id)
+    );
+
+    const filteredIssues = issues.filter(
+        (issue) =>
+            workspaceProjectIds.includes(String(issue.project))
+    );
+
+    const filteredWorkspaceBoards = boards.filter(
+        (board) =>
+            workspaceProjectIds.includes(String(board.project))
+    );
+
+    const filteredWorkspaceSprints = sprints.filter(
+        (sprint) =>
+            workspaceProjectIds.includes(String(sprint.project))
+    );
+
+    // CLEAR OLD SELECTIONS WHEN WORKSPACE CHANGES
+    useEffect(() => {
+        setIssueData((previous) => ({
+            ...previous,
+            project: "",
+            board: "",
+            sprint: ""
+        }));
+
+        setSelectedIssue(null);
+        setEditingIssue(null);
+        setError("");
+        setSuccess("");
+        setEditError("");
+        setEditSuccess("");
+    }, [selectedWorkspaceId]);
+
     // CREATE ISSUE FORM
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -156,22 +206,42 @@ function Issues() {
         });
     };
 
-    const filteredBoards = boards.filter(
-        (board) => String(board.project) === String(issueData.project)
+    // PROJECT-WISE BOARDS AND SPRINTS
+    const filteredBoards = filteredWorkspaceBoards.filter(
+        (board) =>
+            String(board.project) === String(issueData.project)
     );
 
-    const filteredSprints = sprints.filter(
-        (sprint) => String(sprint.project) === String(issueData.project)
+    const filteredSprints = filteredWorkspaceSprints.filter(
+        (sprint) =>
+            String(sprint.project) === String(issueData.project)
     );
 
+    // CREATE ISSUE
     const handleCreateIssue = async (e) => {
         e.preventDefault();
 
         setError("");
         setSuccess("");
 
-        if (!issueData.project || !issueData.board || !issueData.title.trim()) {
-            setError("Please select a project, board and enter an issue title.");
+        if (
+            !selectedWorkspaceId ||
+            !workspaceProjectIds.includes(String(issueData.project)) ||
+            !issueData.board ||
+            !issueData.title.trim()
+        ) {
+            setError(
+                "Please select a valid project, board and enter an issue title."
+            );
+            return;
+        }
+
+        const selectedBoard = filteredBoards.find(
+            (board) => String(board.id) === String(issueData.board)
+        );
+
+        if (!selectedBoard) {
+            setError("Please select a valid board for this project.");
             return;
         }
 
@@ -206,6 +276,7 @@ function Issues() {
 
             setSuccess("Issue created successfully!");
             await fetchData();
+
         } catch (err) {
             const data = err.response?.data;
 
@@ -278,7 +349,6 @@ function Issues() {
             );
 
             setEditSuccess("Issue updated successfully!");
-
             setEditingIssue(null);
 
             setEditData({
@@ -314,6 +384,7 @@ function Issues() {
         setEditSuccess("");
     };
 
+    // OPEN COMMENTS
     const handleOpenComments = (issue) => {
         if (selectedIssue?.id === issue.id) {
             setSelectedIssue(null);
@@ -326,6 +397,7 @@ function Issues() {
         setCommentSuccess("");
     };
 
+    // ADD COMMENT
     const handleAddComment = async (e) => {
         e.preventDefault();
 
@@ -352,6 +424,7 @@ function Issues() {
                 fetchComments(),
                 fetchActivities()
             ]);
+
         } catch (err) {
             const data = err.response?.data;
 
@@ -366,13 +439,16 @@ function Issues() {
         }
     };
 
+    // HELPER FUNCTIONS
     const getProjectName = (id) =>
-        projects.find((item) => String(item.id) === String(id))?.name ||
-        `Project #${id}`;
+        projects.find(
+            (item) => String(item.id) === String(id)
+        )?.name || `Project #${id}`;
 
     const getBoardName = (id) =>
-        boards.find((item) => String(item.id) === String(id))?.name ||
-        `Board #${id}`;
+        boards.find(
+            (item) => String(item.id) === String(id)
+        )?.name || `Board #${id}`;
 
     const getPriorityClass = (priority) =>
         `issue-priority issue-priority-${priority}`;
@@ -422,21 +498,32 @@ function Issues() {
         }
     };
 
+    // COMMENTS FOR SELECTED ISSUE
     const issueComments = selectedIssue
         ? comments.filter(
-            (comment) => String(comment.issue) === String(selectedIssue.id)
+            (comment) =>
+                String(comment.issue) === String(selectedIssue.id)
         )
         : [];
 
+    // ACTIVITIES FOR CURRENT WORKSPACE
     const visibleActivities = selectedIssue
         ? activities.filter(
-            (activity) => String(activity.issue) === String(selectedIssue.id)
+            (activity) =>
+                String(activity.issue) === String(selectedIssue.id)
         )
-        : activities;
+        : activities.filter(
+            (activity) =>
+                filteredIssues.some(
+                    (issue) =>
+                        String(issue.id) === String(activity.issue)
+                )
+        );
 
     return (
         <div className="issues-page">
 
+            {/* PAGE HEADER */}
             <div className="issues-header">
                 <div>
                     <p className="issues-breadcrumb">ISSUE MANAGEMENT</p>
@@ -447,13 +534,12 @@ function Issues() {
                 </div>
 
                 <div className="issues-count">
-                    <span>{issues.length}</span>
+                    <span>{filteredIssues.length}</span>
                     <small>Total Issues</small>
                 </div>
             </div>
 
             {/* CREATE ISSUE */}
-
             <div className="issue-create-card">
                 <h2>Create an Issue</h2>
                 <p>Add a task, bug or story to your project board.</p>
@@ -469,7 +555,8 @@ function Issues() {
                                 onChange={handleChange}
                             >
                                 <option value="">Select Project</option>
-                                {projects.map((project) => (
+
+                                {filteredProjects.map((project) => (
                                     <option key={project.id} value={project.id}>
                                         {project.name}
                                     </option>
@@ -486,6 +573,7 @@ function Issues() {
                                 disabled={!issueData.project}
                             >
                                 <option value="">Select Board</option>
+
                                 {filteredBoards.map((board) => (
                                     <option key={board.id} value={board.id}>
                                         {board.name}
@@ -503,6 +591,7 @@ function Issues() {
                                 disabled={!issueData.project}
                             >
                                 <option value="">No Sprint</option>
+
                                 {filteredSprints.map((sprint) => (
                                     <option key={sprint.id} value={sprint.id}>
                                         {sprint.name}
@@ -588,7 +677,11 @@ function Issues() {
                     <button
                         type="submit"
                         className="issue-create-button"
-                        disabled={creating || projects.length === 0}
+                        disabled={
+                            creating ||
+                            !selectedWorkspaceId ||
+                            filteredProjects.length === 0
+                        }
                     >
                         {creating ? "Creating..." : "+ Create Issue"}
                     </button>
@@ -599,7 +692,6 @@ function Issues() {
             </div>
 
             {/* EDIT ISSUE FORM */}
-
             {editingIssue && (
                 <div className="issue-edit-card">
                     <div className="issue-edit-header">
@@ -718,7 +810,6 @@ function Issues() {
                         {editError && (
                             <p className="issue-error">{editError}</p>
                         )}
-
                     </form>
                 </div>
             )}
@@ -728,11 +819,10 @@ function Issues() {
             )}
 
             {/* ISSUE LIST */}
-
             <div className="issue-list-header">
                 <div>
                     <h2>All Issues</h2>
-                    <p>Issues across your available projects.</p>
+                    <p>Issues in the selected workspace.</p>
                 </div>
 
                 <button
@@ -746,10 +836,15 @@ function Issues() {
 
             {loading ? (
                 <div className="issue-empty">Loading issues...</div>
-            ) : issues.length === 0 ? (
+            ) : !selectedWorkspaceId ? (
+                <div className="issue-empty">
+                    <h3>No workspace selected</h3>
+                    <p>Please select a workspace from the sidebar.</p>
+                </div>
+            ) : filteredIssues.length === 0 ? (
                 <div className="issue-empty">
                     <div className="issue-empty-icon">☷</div>
-                    <h3>No issues yet</h3>
+                    <h3>No issues in this workspace</h3>
                     <p>Create your first issue using the form above.</p>
                 </div>
             ) : (
@@ -769,7 +864,7 @@ function Issues() {
                         </thead>
 
                         <tbody>
-                            {issues.map((issue) => (
+                            {filteredIssues.map((issue) => (
                                 <tr key={issue.id}>
                                     <td>
                                         <strong>{issue.title}</strong>
@@ -821,7 +916,6 @@ function Issues() {
             )}
 
             {/* ISSUE COMMENTS */}
-
             {selectedIssue && (
                 <div className="issue-comments-card">
                     <div className="issue-comments-header">
@@ -909,7 +1003,6 @@ function Issues() {
             )}
 
             {/* ACTIVITY LOG */}
-
             <div className="issue-activity-card">
                 <div className="issue-activity-header">
                     <div>

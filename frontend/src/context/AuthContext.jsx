@@ -13,7 +13,23 @@ export function AuthProvider({ children }) {
         localStorage.getItem("refreshToken")
     );
 
+    const [selectedWorkspaceId, setSelectedWorkspaceIdState] =
+        useState(localStorage.getItem("selectedWorkspaceId") || "");
+
     const isAuthenticated = Boolean(accessToken);
+
+    // SELECT WORKSPACE
+    const setSelectedWorkspaceId = (workspaceId) => {
+        const value = workspaceId ? String(workspaceId) : "";
+
+        if (value) {
+            localStorage.setItem("selectedWorkspaceId", value);
+        } else {
+            localStorage.removeItem("selectedWorkspaceId");
+        }
+
+        setSelectedWorkspaceIdState(value);
+    };
 
     // LOGIN
     const login = async (credentials) => {
@@ -48,9 +64,11 @@ export function AuthProvider({ children }) {
         } finally {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
+            localStorage.removeItem("selectedWorkspaceId");
 
             setAccessToken(null);
             setRefreshToken(null);
+            setSelectedWorkspaceIdState("");
         }
     };
 
@@ -60,6 +78,8 @@ export function AuthProvider({ children }) {
                 accessToken,
                 refreshToken,
                 isAuthenticated,
+                selectedWorkspaceId,
+                setSelectedWorkspaceId,
                 login,
                 register,
                 logout,
