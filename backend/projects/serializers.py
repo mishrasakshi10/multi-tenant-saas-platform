@@ -9,6 +9,7 @@ from .models import (
     IssueComment,
     IssueAttachment,
     IssueActivity,
+    Notification,
 )
 
 
@@ -274,4 +275,35 @@ class IssueActivitySerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'issue', 'actor', 'action', 'field_name',
             'old_value', 'new_value', 'created_at',
+        ]
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+
+    issue_title = serializers.CharField(
+        source='issue.title',
+        read_only=True
+    )
+
+    class Meta:
+        model = Notification
+        fields = [
+            'id',
+            'recipient',
+            'workspace',
+            'issue',
+            'issue_title',
+            'notification_type',
+            'message',
+            'is_read',
+            'created_at',
+        ]
+        read_only_fields = [
+            'id',
+            'recipient',
+            'workspace',
+            'issue',
+            'notification_type',
+            'message',
+            'created_at',
         ]

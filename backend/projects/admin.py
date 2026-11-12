@@ -8,6 +8,7 @@ from .models import (
     IssueComment,
     IssueAttachment,
     IssueActivity,
+    Notification,
 )
 
 
@@ -84,5 +85,30 @@ class IssueActivityAdmin(admin.ModelAdmin):
     search_fields = (
         "issue__title", "actor__username",
         "field_name", "old_value", "new_value",
+    )
+    readonly_fields = ("created_at",)
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = (
+        "recipient",
+        "workspace",
+        "issue",
+        "notification_type",
+        "is_read",
+        "created_at",
+    )
+    list_filter = (
+        "notification_type",
+        "is_read",
+        "workspace",
+        "created_at",
+    )
+    search_fields = (
+        "recipient__username",
+        "recipient__email",
+        "issue__title",
+        "message",
     )
     readonly_fields = ("created_at",)

@@ -10,6 +10,7 @@ from .models import (
     IssueComment,
     IssueAttachment,
     IssueActivity,
+    Notification,
 )
 
 from .serializers import (
@@ -20,6 +21,7 @@ from .serializers import (
     IssueCommentSerializer,
     IssueAttachmentSerializer,
     IssueActivitySerializer,
+    NotificationSerializer,
 )
 
 from workspaces.permissions import (
@@ -48,6 +50,55 @@ def create_activity(
         old_value=str(old_value),
         new_value=str(new_value),
     )
+
+
+# =========================
+# NOTIFICATION HELPER
+# =========================
+
+def create_notification(
+    issue,
+    recipient,
+    notification_type,
+    message,
+    actor=None
+):
+    if recipient is None:
+        return
+
+    if actor is not None and recipient.id == actor.id:
+        return
+
+    Notification.objects.create(
+        recipient=recipient,
+        workspace=issue.project.workspace,
+        issue=issue,
+        notification_type=notification_type,
+        message=message,
+    )
+
+
+def notify_issue_participants(
+    issue,
+    actor,
+    notification_type,
+    message
+):
+    recipients = {
+        issue.reporter_id: issue.reporter,
+    }
+
+    if issue.assignee_id:
+        recipients[issue.assignee_id] = issue.assignee
+
+    for recipient in recipients.values():
+        create_notification(
+            issue=issue,
+            recipient=recipient,
+            notification_type=notification_type,
+            message=message,
+            actor=actor,
+        )
 
 
 # =========================
@@ -179,6 +230,15 @@ class IssueListCreateAPIView(generics.ListCreateAPIView):
             new_value=issue.title
         )
 
+        if issue.assignee_id:
+            create_notification(
+                issue=issue,
+                recipient=issue.assignee,
+                notification_type=Notification.NotificationType.ASSIGNED,
+                message=f"You have been assigned to issue: {issue.title}",
+                actor=self.request.user,
+            )
+
 
 class IssueDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
@@ -219,6 +279,16 @@ class IssueDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
                 issue.status
             )
 
+            notify_issue_participants(
+                issue=issue,
+                actor=self.request.user,
+                notification_type=Notification.NotificationType.STATUS_CHANGED,
+                message=(
+                    f"Issue '{issue.title}' status changed "
+                    f"from {old_status} to {issue.status}."
+                )
+            )
+
         if old_assignee_id != issue.assignee_id:
             create_activity(
                 issue,
@@ -228,6 +298,15 @@ class IssueDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
                 old_assignee_id,
                 issue.assignee_id
             )
+
+            if issue.assignee_id:
+                create_notification(
+                    issue=issue,
+                    recipient=issue.assignee,
+                    notification_type=Notification.NotificationType.ASSIGNED,
+                    message=f"You have been assigned to issue: {issue.title}",
+                    actor=self.request.user,
+                )
 
         if old_title != issue.title:
             create_activity(
@@ -285,6 +364,15 @@ class IssueCommentListCreateAPIView(generics.ListCreateAPIView):
             actor=self.request.user,
             action=IssueActivity.Action.COMMENTED,
             new_value=comment.body
+        )
+
+        notify_issue_participants(
+            issue=comment.issue,
+            actor=self.request.user,
+            notification_type=Notification.NotificationType.COMMENT,
+            message=(
+                f"New comment on issue: {comment.issue.title}"
+            )
         )
 
 
@@ -382,3 +470,41 @@ class IssueActivityListAPIView(generics.ListAPIView):
             queryset = queryset.filter(issue_id=issue_id)
 
         return queryset.order_by('-created_at')
+
+
+# =========================
+# NOTIFICATION APIs
+# =========================
+
+class NotificationListAPIView(generics.ListAPIView):
+
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(
+            recipient=self.request.user,
+            workspace__memberships__user=self.request.user
+        ).select_related(
+            'recipient',
+            'workspace',
+            'issue',
+        ).distinct().order_by('-created_at')
+
+
+class NotificationDetailAPIView(generics.UpdateAPIView):
+
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(
+            recipient=self.request.user,
+            workspace__memberships__user=self.request.user
+        ).select_related(
+            'recipient',
+            'workspace',
+            'issue',
+        ).distinct()
+
+    http_method_names = ['patch', 'options', 'head']

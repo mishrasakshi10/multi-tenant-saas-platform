@@ -15,6 +15,8 @@ from .views import (
     IssueAttachmentListCreateAPIView,
     IssueAttachmentDetailAPIView,
     IssueActivityListAPIView,
+    NotificationListAPIView,
+    NotificationDetailAPIView,
 )
 
 urlpatterns = [
@@ -45,5 +47,18 @@ urlpatterns = [
 
     # Activity URLs
     path('activities/', IssueActivityListAPIView.as_view(), name='issue-activity-list'),
+
+    # Notification URLs
+    path(
+        'notifications/',
+        NotificationListAPIView.as_view(),
+        name='notification-list'
+    ),
+
+    path(
+        'notifications/<int:pk>/',
+        NotificationDetailAPIView.as_view(),
+        name='notification-detail'
+    ),
 
 ]
