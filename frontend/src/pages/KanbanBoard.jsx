@@ -1,11 +1,17 @@
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import api from "../services/api";
 
 import "./KanbanBoard.css";
+
+const getList = (data) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
+};
 
 function KanbanBoard() {
     const navigate = useNavigate();
@@ -26,13 +32,8 @@ function KanbanBoard() {
         { id: "done", title: "Done", className: "done" },
     ];
 
-    const getList = (data) => {
-        if (Array.isArray(data)) return data;
-        return data?.results || [];
-    };
-
     // FETCH PROJECTS AND ISSUES
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             setError("");
@@ -53,15 +54,28 @@ function KanbanBoard() {
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchData();
     }, []);
+
+    // INITIAL DATA FETCH
+    useEffect(() => {
+        Promise.resolve().then(() => {
+            fetchData();
+        });
+    }, [fetchData]);
 
     // RESET PROJECT FILTER WHEN WORKSPACE CHANGES
     useEffect(() => {
-        setSelectedProject("");
+        let cancelled = false;
+
+        Promise.resolve().then(() => {
+            if (cancelled) return;
+
+            setSelectedProject("");
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [selectedWorkspaceId]);
 
     // FILTER PROJECTS BY WORKSPACE
@@ -103,7 +117,7 @@ function KanbanBoard() {
         );
 
         const issue = filteredIssues.find(
-            (item) => item.id === issueId
+            (item) => String(item.id) === String(issueId)
         );
 
         if (!issue || issue.status === newStatus) return;
@@ -118,7 +132,7 @@ function KanbanBoard() {
 
             setIssues((previous) =>
                 previous.map((item) =>
-                    item.id === issueId
+                    String(item.id) === String(issueId)
                         ? { ...item, status: newStatus }
                         : item
                 )
@@ -263,7 +277,7 @@ function KanbanBoard() {
                                         key={issue.id}
                                         className="kanban-issue"
                                         draggable={
-                                            updatingIssue !== issue.id
+                                            updatingIssue !== Number(issue.id)
                                         }
                                         onDragStart={(event) =>
                                             handleDragStart(
@@ -273,7 +287,7 @@ function KanbanBoard() {
                                         }
                                         style={{
                                             opacity:
-                                                updatingIssue === issue.id
+                                                updatingIssue === Number(issue.id)
                                                     ? 0.5
                                                     : 1,
                                         }}
@@ -292,7 +306,7 @@ function KanbanBoard() {
                                             {formatPriority(issue.priority)}
                                         </span>
 
-                                        {updatingIssue === issue.id && (
+                                        {updatingIssue === Number(issue.id) && (
                                             <p>Updating status...</p>
                                         )}
 

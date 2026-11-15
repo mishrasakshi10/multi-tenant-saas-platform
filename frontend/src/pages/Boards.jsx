@@ -1,9 +1,15 @@
 
-import { useEffect, useState } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "../context/useAuth";
 
 import api from "../services/api";
 import "./Boards.css";
+
+const getList = (data) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
+};
 
 function Boards() {
     const { selectedWorkspaceId } = useAuth();
@@ -15,7 +21,7 @@ function Boards() {
         project: "",
         name: "",
         description: "",
-        is_default: false
+        is_default: false,
     });
 
     const [loading, setLoading] = useState(true);
@@ -23,26 +29,17 @@ function Boards() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    const getList = (data) => {
-        if (Array.isArray(data)) return data;
-        if (Array.isArray(data?.results)) return data.results;
-        return [];
-    };
-
     // FETCH BOARDS AND PROJECTS
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
-            setError("");
-
-            const [boardResponse, projectResponse] =
-                await Promise.all([
-                    api.get("projects/boards/"),
-                    api.get("projects/")
-                ]);
+            const [boardResponse, projectResponse] = await Promise.all([
+                api.get("projects/boards/"),
+                api.get("projects/"),
+            ]);
 
             setBoards(getList(boardResponse.data));
             setProjects(getList(projectResponse.data));
-
+            setError("");
         } catch (err) {
             setError(
                 err.response?.data?.detail ||
@@ -51,39 +48,38 @@ function Boards() {
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchData();
     }, []);
 
-    // RESET PROJECT SELECTION WHEN WORKSPACE CHANGES
-    useEffect(() => {
-        setBoardData(previous => ({
-            ...previous,
-            project: ""
-        }));
-
-        setError("");
-        setSuccess("");
-    }, [selectedWorkspaceId]);
+    // INITIAL DATA FETCH
+useEffect(() => {
+    Promise.resolve().then(() => {
+        fetchData();
+    });
+}, [fetchData]);
 
     // FILTER PROJECTS BY SELECTED WORKSPACE
     const filteredProjects = selectedWorkspaceId
         ? projects.filter(
-            project =>
+            (project) =>
                 String(project.workspace) === String(selectedWorkspaceId)
         )
         : [];
 
+    // KEEP PROJECT SELECTION VALID FOR CURRENT WORKSPACE
+    const selectedProjectId = filteredProjects.some(
+        (project) => String(project.id) === String(boardData.project)
+    )
+        ? boardData.project
+        : "";
+
     // GET PROJECT IDS OF SELECTED WORKSPACE
     const workspaceProjectIds = filteredProjects.map(
-        project => String(project.id)
+        (project) => String(project.id)
     );
 
     // FILTER BOARDS BY SELECTED WORKSPACE
     const filteredBoards = boards.filter(
-        board =>
+        (board) =>
             workspaceProjectIds.includes(String(board.project))
     );
 
@@ -91,10 +87,13 @@ function Boards() {
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
 
-        setBoardData(previous => ({
+        setBoardData((previous) => ({
             ...previous,
-            [name]: type === "checkbox" ? checked : value
+            [name]: type === "checkbox" ? checked : value,
         }));
+
+        setError("");
+        setSuccess("");
     };
 
     // CREATE BOARD
@@ -109,15 +108,8 @@ function Boards() {
             return;
         }
 
-        if (!boardData.project) {
+        if (!selectedProjectId) {
             setError("Please select a project.");
-            return;
-        }
-
-        if (!filteredProjects.some(
-            project => String(project.id) === String(boardData.project)
-        )) {
-            setError("Please select a project from the current workspace.");
             return;
         }
 
@@ -130,23 +122,22 @@ function Boards() {
             setCreating(true);
 
             await api.post("projects/boards/", {
-                project: Number(boardData.project),
+                project: Number(selectedProjectId),
                 name: boardData.name.trim(),
                 description: boardData.description.trim(),
-                is_default: boardData.is_default
+                is_default: boardData.is_default,
             });
 
             setBoardData({
                 project: "",
                 name: "",
                 description: "",
-                is_default: false
+                is_default: false,
             });
 
             setSuccess("Board created successfully!");
 
             await fetchData();
-
         } catch (err) {
             const data = err.response?.data;
 
@@ -164,7 +155,7 @@ function Boards() {
     // GET PROJECT NAME
     const getProjectName = (projectId) => {
         const project = projects.find(
-            item => String(item.id) === String(projectId)
+            (item) => String(item.id) === String(projectId)
         );
 
         return project?.name || `Project #${projectId}`;
@@ -213,15 +204,18 @@ function Boards() {
 
                             <select
                                 name="project"
-                                value={boardData.project}
+                                value={selectedProjectId}
                                 onChange={handleChange}
-                                disabled={!selectedWorkspaceId || filteredProjects.length === 0}
+                                disabled={
+                                    !selectedWorkspaceId ||
+                                    filteredProjects.length === 0
+                                }
                             >
                                 <option value="">
                                     Select Project
                                 </option>
 
-                                {filteredProjects.map(project => (
+                                {filteredProjects.map((project) => (
                                     <option
                                         key={project.id}
                                         value={project.id}
@@ -319,6 +313,7 @@ function Boards() {
                 </div>
 
                 <button
+                    type="button"
                     className="board-refresh"
                     onClick={fetchData}
                 >
@@ -360,7 +355,7 @@ function Boards() {
 
                 <div className="board-grid">
 
-                    {filteredBoards.map(board => (
+                    {filteredBoards.map((board) => (
 
                         <div
                             className="board-card"

@@ -1,8 +1,7 @@
 
-import { createContext, useContext, useState } from "react";
+import { useState } from "react";
+import { AuthContext } from "./AuthContext";
 import api from "../services/api";
-
-const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
     const [accessToken, setAccessToken] = useState(
@@ -88,8 +87,4 @@ export function AuthProvider({ children }) {
             {children}
         </AuthContext.Provider>
     );
-}
-
-export function useAuth() {
-    return useContext(AuthContext);
 }

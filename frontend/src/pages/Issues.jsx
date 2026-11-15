@@ -1,9 +1,15 @@
 
-import { useEffect, useState } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "../context/useAuth";
 import { useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import "./Issues.css";
+
+const getList = (data) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
+};
 
 function Issues() {
     const { selectedWorkspaceId } = useAuth();
@@ -62,14 +68,8 @@ function Issues() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    const getList = (data) => {
-        if (Array.isArray(data)) return data;
-        if (Array.isArray(data?.results)) return data.results;
-        return [];
-    };
-
     // FETCH COMMENTS
-    const fetchComments = async () => {
+    const fetchComments = useCallback(async () => {
         try {
             setCommentLoading(true);
             setCommentError("");
@@ -84,10 +84,10 @@ function Issues() {
         } finally {
             setCommentLoading(false);
         }
-    };
+    }, []);
 
     // FETCH ACTIVITIES
-    const fetchActivities = async () => {
+    const fetchActivities = useCallback(async () => {
         try {
             setActivityLoading(true);
             setActivityError("");
@@ -102,10 +102,10 @@ function Issues() {
         } finally {
             setActivityLoading(false);
         }
-    };
+    }, []);
 
     // FETCH ALL DATA
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             setError("");
@@ -139,11 +139,14 @@ function Issues() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [fetchComments, fetchActivities]);
 
+    // INITIAL DATA FETCH
     useEffect(() => {
-        fetchData();
-    }, []);
+        Promise.resolve().then(() => {
+            fetchData();
+        });
+    }, [fetchData]);
 
     // WORKSPACE FILTERING
     const filteredProjects = selectedWorkspaceId
@@ -174,19 +177,29 @@ function Issues() {
 
     // CLEAR OLD SELECTIONS WHEN WORKSPACE CHANGES
     useEffect(() => {
-        setIssueData((previous) => ({
-            ...previous,
-            project: "",
-            board: "",
-            sprint: ""
-        }));
+        let cancelled = false;
 
-        setSelectedIssue(null);
-        setEditingIssue(null);
-        setError("");
-        setSuccess("");
-        setEditError("");
-        setEditSuccess("");
+        Promise.resolve().then(() => {
+            if (cancelled) return;
+
+            setIssueData((previous) => ({
+                ...previous,
+                project: "",
+                board: "",
+                sprint: ""
+            }));
+
+            setSelectedIssue(null);
+            setEditingIssue(null);
+            setError("");
+            setSuccess("");
+            setEditError("");
+            setEditSuccess("");
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [selectedWorkspaceId]);
 
     // OPEN ISSUE AUTOMATICALLY FROM NOTIFICATION URL
@@ -200,13 +213,15 @@ function Issues() {
         );
 
         if (issue) {
-            setSelectedIssue(issue);
-            setCommentText("");
-            setCommentError("");
-            setCommentSuccess("");
+            Promise.resolve().then(() => {
+                setSelectedIssue(issue);
+                setCommentText("");
+                setCommentError("");
+                setCommentSuccess("");
 
-            // Remove issue parameter after opening the issue
-            setSearchParams({}, { replace: true });
+                // Remove issue parameter after opening the issue
+                setSearchParams({}, { replace: true });
+            });
         }
     }, [
         requestedIssueId,

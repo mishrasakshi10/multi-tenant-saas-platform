@@ -1,10 +1,16 @@
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 
 import api from "../services/api";
 import "./Projects.css";
+
+const getList = (data) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
+};
 
 function Projects() {
     const navigate = useNavigate();
@@ -37,14 +43,8 @@ function Projects() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    const getList = (data) => {
-        if (Array.isArray(data)) return data;
-        if (Array.isArray(data?.results)) return data.results;
-        return [];
-    };
-
     // FETCH PROJECTS AND WORKSPACES
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setError("");
 
@@ -65,22 +65,35 @@ function Projects() {
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchData();
     }, []);
+
+    // INITIAL DATA FETCH
+    useEffect(() => {
+        Promise.resolve().then(() => {
+            fetchData();
+        });
+    }, [fetchData]);
 
     // UPDATE CREATE FORM WHEN WORKSPACE CHANGES
     useEffect(() => {
-        setProjectData(previous => ({
-            ...previous,
-            workspace: selectedWorkspaceId || ""
-        }));
+        let cancelled = false;
 
-        setEditingProjectId(null);
-        setError("");
-        setSuccess("");
+        Promise.resolve().then(() => {
+            if (cancelled) return;
+
+            setProjectData(previous => ({
+                ...previous,
+                workspace: selectedWorkspaceId || ""
+            }));
+
+            setEditingProjectId(null);
+            setError("");
+            setSuccess("");
+        });
+
+        return () => {
+            cancelled = true;
+        };
     }, [selectedWorkspaceId]);
 
     // CURRENT WORKSPACE
@@ -464,6 +477,7 @@ function Projects() {
                 </div>
 
                 <button
+                    type="button"
                     className="project-refresh"
                     onClick={fetchData}
                 >

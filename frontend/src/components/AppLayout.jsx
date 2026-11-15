@@ -7,7 +7,7 @@ import {
     useLocation,
 } from "react-router-dom";
 
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 import api from "../services/api";
 import "./AppLayout.css";
 
@@ -173,9 +173,7 @@ function AppLayout() {
 
     return (
         <div className="app-layout">
-
             <aside className="app-sidebar">
-
                 <div className="app-brand">
                     <div className="app-brand-icon">P</div>
 
@@ -249,7 +247,6 @@ function AppLayout() {
                         ProjectHub · SaaS Platform
                     </div>
                 </div>
-
             </aside>
 
             <main className="app-main">
@@ -264,7 +261,6 @@ function AppLayout() {
                     />
                 </div>
             </main>
-
         </div>
     );
 }

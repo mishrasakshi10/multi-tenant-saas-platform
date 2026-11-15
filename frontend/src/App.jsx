@@ -1,7 +1,9 @@
 
 import { Routes, Route, Navigate } from "react-router-dom";
 
-import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AuthProvider } from "./context/AuthContext.jsx";
+import { useAuth } from "./context/useAuth";
+
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./components/AppLayout";
 
@@ -54,13 +56,13 @@ function AppRoutes() {
                 <Route element={<AppLayout />}>
                     <Route path="/dashboard" element={<Dashboard />} />
 
-                   <Route path="/workspaces" element={<Workspaces />} />
+                    <Route path="/workspaces" element={<Workspaces />} />
 
-                   <Route path="/projects" element={<Projects />} />
+                    <Route path="/projects" element={<Projects />} />
 
-                   <Route path="/boards" element={<Boards />} />
-                    
-                   <Route path="/issues" element={<Issues />} />
+                    <Route path="/boards" element={<Boards />} />
+
+                    <Route path="/issues" element={<Issues />} />
 
                     <Route path="/kanban" element={<KanbanBoard />} />
                 </Route>

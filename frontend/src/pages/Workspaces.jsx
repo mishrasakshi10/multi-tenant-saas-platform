@@ -1,10 +1,16 @@
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 
 import api from "../services/api";
 import "./Workspaces.css";
+
+const getList = (data) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
+};
 
 function Workspaces() {
     const navigate = useNavigate();
@@ -17,14 +23,8 @@ function Workspaces() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    const getList = (data) => {
-        if (Array.isArray(data)) return data;
-        if (Array.isArray(data?.results)) return data.results;
-        return [];
-    };
-
     // FETCH WORKSPACES
-    const fetchWorkspaces = async () => {
+    const fetchWorkspaces = useCallback(async () => {
         try {
             setLoading(true);
             setError("");
@@ -32,7 +32,6 @@ function Workspaces() {
             const response = await api.get("workspaces/");
 
             setWorkspaces(getList(response.data));
-
         } catch (err) {
             setError(
                 err.response?.data?.detail ||
@@ -41,11 +40,13 @@ function Workspaces() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
-        fetchWorkspaces();
-    }, []);
+        Promise.resolve().then(() => {
+            fetchWorkspaces();
+        });
+    }, [fetchWorkspaces]);
 
     // CREATE WORKSPACE
     const handleCreateWorkspace = async (e) => {
@@ -69,7 +70,6 @@ function Workspaces() {
             setSuccess("Workspace created successfully!");
 
             await fetchWorkspaces();
-
         } catch (err) {
             const data = err.response?.data;
 
@@ -85,10 +85,7 @@ function Workspaces() {
 
     // OPEN WORKSPACE
     const handleOpenWorkspace = (workspace) => {
-        // Save selected workspace globally
         setSelectedWorkspaceId(workspace.id);
-
-        // Open Projects page for selected workspace
         navigate(`/projects?workspace=${workspace.id}`);
     };
 
@@ -117,7 +114,6 @@ function Workspaces() {
 
             {/* CREATE WORKSPACE */}
             <div className="workspace-create-card">
-
                 <div>
                     <h2>Create a Workspace</h2>
 
@@ -127,7 +123,6 @@ function Workspaces() {
                 </div>
 
                 <form onSubmit={handleCreateWorkspace}>
-
                     <input
                         type="text"
                         placeholder="Enter workspace name"
@@ -145,7 +140,6 @@ function Workspaces() {
                             ? "Creating..."
                             : "+ Create Workspace"}
                     </button>
-
                 </form>
 
                 {error && (
@@ -159,12 +153,10 @@ function Workspaces() {
                         {success}
                     </p>
                 )}
-
             </div>
 
             {/* WORKSPACE LIST HEADER */}
             <div className="workspace-list-header">
-
                 <div>
                     <h2>Your Workspaces</h2>
 
@@ -180,20 +172,15 @@ function Workspaces() {
                 >
                     ↻ Refresh
                 </button>
-
             </div>
 
             {/* WORKSPACE LIST */}
             {loading ? (
-
                 <div className="workspace-empty">
                     Loading workspaces...
                 </div>
-
             ) : workspaces.length === 0 ? (
-
                 <div className="workspace-empty">
-
                     <div className="workspace-empty-icon">
                         ▣
                     </div>
@@ -203,15 +190,10 @@ function Workspaces() {
                     <p>
                         Create your first workspace using the form above.
                     </p>
-
                 </div>
-
             ) : (
-
                 <div className="workspace-grid">
-
                     {workspaces.map((workspace) => (
-
                         <button
                             type="button"
                             className="workspace-card workspace-card-clickable"
@@ -220,9 +202,7 @@ function Workspaces() {
                                 handleOpenWorkspace(workspace)
                             }
                         >
-
                             <div className="workspace-card-top">
-
                                 <div className="workspace-card-icon">
                                     ▣
                                 </div>
@@ -230,7 +210,6 @@ function Workspaces() {
                                 <span className="workspace-status">
                                     Active
                                 </span>
-
                             </div>
 
                             <h3>{workspace.name}</h3>
@@ -242,7 +221,6 @@ function Workspaces() {
                             </p>
 
                             <div className="workspace-card-footer">
-
                                 <span>
                                     ID: {workspace.id}
                                 </span>
@@ -250,17 +228,11 @@ function Workspaces() {
                                 <span>
                                     Open Workspace →
                                 </span>
-
                             </div>
-
                         </button>
-
                     ))}
-
                 </div>
-
             )}
-
         </div>
     );
 }
