@@ -14,3 +14,4 @@ tzdata==2026.6
 celery==5.7.0
 redis==8.1.0
 packaging==26.3
+stripe==17.0.0

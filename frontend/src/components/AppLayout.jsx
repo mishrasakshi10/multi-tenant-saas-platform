@@ -162,14 +162,15 @@ function AppLayout() {
         }
     };
 
-    const navItems = [
-        { path: "/dashboard", label: "Overview", icon: "▦" },
-        { path: "/workspaces", label: "Workspaces", icon: "▣" },
-        { path: "/projects", label: "Projects", icon: "◫" },
-        { path: "/boards", label: "Boards", icon: "▤" },
-        { path: "/issues", label: "Issues", icon: "☷" },
-        { path: "/kanban", label: "Kanban Board", icon: "▥" },
-    ];
+   const navItems = [
+    { path: "/dashboard", label: "Overview", icon: "▦" },
+    { path: "/workspaces", label: "Workspaces", icon: "▣" },
+    { path: "/projects", label: "Projects", icon: "◫" },
+    { path: "/boards", label: "Boards", icon: "▤" },
+    { path: "/issues", label: "Issues", icon: "☷" },
+    { path: "/kanban", label: "Kanban Board", icon: "▥" },
+    { path: "/billing", label: "Billing", icon: "₹" },
+   ];
 
     return (
         <div className="app-layout">

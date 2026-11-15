@@ -46,6 +46,12 @@ urlpatterns = [
         'api/projects/',
         include('projects.urls')
     ),
+
+    # Billing APIs
+    path(
+    'api/billing/',
+    include('billing.urls')
+    ),
 ]
 
 

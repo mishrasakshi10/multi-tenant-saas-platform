@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'workspaces',
     'projects',
     'accounts',
+    'billing',
     'rest_framework_simplejwt.token_blacklist',
 ]
 
@@ -196,3 +197,25 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
+
+# =========================
+# STRIPE CONFIGURATION
+# =========================
+
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+STRIPE_PRICE_ID = os.getenv("STRIPE_PRICE_ID", "")
+
+STRIPE_SUCCESS_URL = os.getenv(
+    "STRIPE_SUCCESS_URL",
+    "http://localhost:5173/billing/success"
+)
+
+STRIPE_CANCEL_URL = os.getenv(
+    "STRIPE_CANCEL_URL",
+    "http://localhost:5173/billing/cancel"
+)

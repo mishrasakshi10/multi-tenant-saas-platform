@@ -15,6 +15,7 @@ import Workspaces from "./pages/Workspaces";
 import Projects from "./pages/Projects";
 import Boards from "./pages/Boards";
 import Issues from "./pages/Issues";
+import Billing from "./pages/Billing";
 
 import "./App.css";
 
@@ -55,16 +56,12 @@ function AppRoutes() {
             <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>
                     <Route path="/dashboard" element={<Dashboard />} />
-
                     <Route path="/workspaces" element={<Workspaces />} />
-
                     <Route path="/projects" element={<Projects />} />
-
                     <Route path="/boards" element={<Boards />} />
-
                     <Route path="/issues" element={<Issues />} />
-
                     <Route path="/kanban" element={<KanbanBoard />} />
+                    <Route path="/billing" element={<Billing />} />
                 </Route>
             </Route>
 
