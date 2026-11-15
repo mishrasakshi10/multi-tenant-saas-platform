@@ -282,6 +282,7 @@ class Notification(models.Model):
         ASSIGNED = "ASSIGNED", "Assigned"
         COMMENT = "COMMENT", "Comment"
         STATUS_CHANGED = "STATUS_CHANGED", "Status Changed"
+        DUE_DATE_REMINDER = "DUE_DATE_REMINDER", "Due Date Reminder"
 
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -308,12 +309,31 @@ class Notification(models.Model):
 
     message = models.CharField(max_length=255)
 
+    reminder_for_date = models.DateField(
+        null=True,
+        blank=True
+    )
+
     is_read = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "recipient",
+                    "issue",
+                    "notification_type",
+                    "reminder_for_date"
+                ],
+                condition=models.Q(
+                    notification_type="DUE_DATE_REMINDER"
+                ),
+                name="unique_due_date_reminder_per_recipient_issue_date"
+            )
+        ]
 
     def __str__(self):
         return f"{self.recipient} - {self.message}"
