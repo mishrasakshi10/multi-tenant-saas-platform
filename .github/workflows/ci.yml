@@ -1,4 +1,5 @@
-﻿name: SaaS Platform CI
+﻿
+name: SaaS Platform CI
 
 on:
   push:
@@ -27,10 +28,14 @@ jobs:
 
       - name: Django system check
         working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
         run: python manage.py check --settings=config.settings_test
 
       - name: Run backend tests
         working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
         run: python manage.py test --settings=config.settings_test
 
   frontend-checks:
