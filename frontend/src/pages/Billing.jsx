@@ -10,7 +10,7 @@ function Billing() {
     const [subscription, setSubscription] = useState(null);
     const [loading, setLoading] = useState(false);
     const [checkoutLoading, setCheckoutLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [message, setMessage] = useState("");
 
     useEffect(() => {
         const fetchSubscription = async () => {
@@ -20,7 +20,7 @@ function Billing() {
             }
 
             setLoading(true);
-            setError("");
+            setMessage("");
 
             try {
                 const response = await api.get(
@@ -32,9 +32,10 @@ function Billing() {
                 if (err.response?.status === 404) {
                     setSubscription(null);
                 } else {
-                    setError(
-                        err.response?.data?.detail ||
-                        "Unable to load subscription details."
+                    // Keep Billing accessible when Stripe is not configured.
+                    setSubscription(null);
+                    setMessage(
+                        "You are currently using the Free Plan. Paid subscription details are currently unavailable."
                     );
                 }
             } finally {
@@ -49,7 +50,7 @@ function Billing() {
         if (!selectedWorkspaceId) return;
 
         setCheckoutLoading(true);
-        setError("");
+        setMessage("");
 
         try {
             const response = await api.post(
@@ -59,12 +60,14 @@ function Billing() {
             if (response.data.checkout_url) {
                 window.location.href = response.data.checkout_url;
             } else {
-                setError("Checkout URL was not returned.");
+                setMessage(
+                    "Paid plan checkout is currently unavailable."
+                );
             }
         } catch (err) {
-            setError(
+            setMessage(
                 err.response?.data?.detail ||
-                "Unable to start checkout. Please try again."
+                "Paid plan checkout is not available right now."
             );
         } finally {
             setCheckoutLoading(false);
@@ -103,12 +106,6 @@ function Billing() {
                 </div>
             </div>
 
-            {error && (
-                <div className="billing-error">
-                    {error}
-                </div>
-            )}
-
             {loading ? (
                 <div className="billing-message">
                     Loading subscription details...
@@ -126,11 +123,13 @@ function Billing() {
                             </h2>
                         </div>
 
-                        <span className={`billing-status ${
-                            subscription?.status === "active"
-                                ? "status-active"
-                                : "status-inactive"
-                        }`}>
+                        <span
+                            className={`billing-status ${
+                                subscription?.status === "active"
+                                    ? "status-active"
+                                    : "status-inactive"
+                            }`}
+                        >
                             {subscription?.status || "free"}
                         </span>
                     </div>
@@ -141,7 +140,7 @@ function Billing() {
                         <div>
                             <span>Subscription Status</span>
                             <strong>
-                                {subscription?.status || "No paid subscription"}
+                                {subscription?.status || "Free Plan"}
                             </strong>
                         </div>
 
@@ -164,11 +163,18 @@ function Billing() {
 
                     <div className="billing-divider" />
 
+                    {message && (
+                        <p className="billing-note">
+                            {message}
+                        </p>
+                    )}
+
                     <div className="billing-actions">
                         <div>
                             <h3>Upgrade your workspace</h3>
                             <p>
-                                Choose a paid plan to access subscription features.
+                                Paid subscription plans will be available
+                                when payment configuration is enabled.
                             </p>
                         </div>
 
@@ -184,8 +190,8 @@ function Billing() {
                     </div>
 
                     <p className="billing-note">
-                        Payments are processed securely through Stripe.
-                        Checkout requires Stripe account configuration.
+                        Payment processing is subject to payment provider
+                        configuration and availability.
                     </p>
                 </div>
             )}
