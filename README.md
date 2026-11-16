@@ -18,6 +18,12 @@ A full-stack SaaS project management application inspired by tools like Jira. It
 - Docker-based local development
 - Automated backend and frontend checks using GitHub Actions
 
+## Application Preview
+
+### Dashboard
+
+![Dashboard Preview](docs/dashboard.png)
+
 ## Tech Stack
 
 ### Backend
