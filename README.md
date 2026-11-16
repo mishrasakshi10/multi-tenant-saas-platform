@@ -1,11 +1,18 @@
-
 # Multi-Tenant SaaS Project Management Platform
 
 A full-stack SaaS project management application inspired by tools like Jira. It enables teams to manage workspaces, projects, tasks, sprints, and collaboration through a centralized platform with tenant-based data isolation.
 
+## Live Application
+
+- **Frontend:** https://multi-tenant-saas-platform-xi.vercel.app
+- **Backend API:** https://multi-tenant-saas-platform-n35l.onrender.com
+- **GitHub Repository:** https://github.com/mishrasakshi10/multi-tenant-saas-platform
+
+> Note: The backend root URL may return 404 because the application exposes its functionality through API routes.
+
 ## Features
 
-- User authentication and authorization
+- User registration and JWT authentication
 - Multi-tenant workspaces and membership management
 - Project creation and management
 - Kanban boards and issue tracking
@@ -13,7 +20,7 @@ A full-stack SaaS project management application inspired by tools like Jira. It
 - Issue comments and attachments
 - Activity logs and notifications
 - Workspace-based subscription and billing integration
-- Background tasks and due-date reminders
+- Background task and due-date reminder integration
 - RESTful API architecture
 - Docker-based local development
 - Automated backend and frontend checks using GitHub Actions
@@ -31,12 +38,12 @@ A full-stack SaaS project management application inspired by tools like Jira. It
 - Django
 - Django REST Framework
 - PostgreSQL
-- Celery
-- Redis
+- Celery integration
+- Redis integration
 - Stripe API integration
 
 ### Frontend
-- React
+- React 19
 - Vite
 - JavaScript
 - HTML
@@ -44,15 +51,17 @@ A full-stack SaaS project management application inspired by tools like Jira. It
 
 ### Tools and Services
 - Neon PostgreSQL
-- Upstash Redis
+- Upstash Redis integration
 - Docker and Docker Compose
 - Git and GitHub
 - GitHub Actions
+- Render
+- Vercel
 
 ## Project Structure
 
 ```text
-SaaS-Platform/
+multi-tenant-saas-platform/
 ├── backend/
 │   ├── accounts/
 │   ├── billing/
@@ -74,11 +83,30 @@ SaaS-Platform/
 │   └── package.json
 │
 ├── docs/
+│   ├── dashboard.png
+│   ├── ARCHITECTURE.md
+│   ├── API_DOCUMENTATION.md
+│   ├── DATABASE_DESIGN.md
+│   ├── DEPLOYMENT.md
+│   └── TESTING.md
+│
 ├── .github/
 │   └── workflows/
 ├── docker-compose.yml
 └── README.md
 ```
+
+## Documentation
+
+Detailed project documentation is available in the `docs/` directory:
+
+| Document | Description |
+|---|---|
+| [Architecture](docs/ARCHITECTURE.md) | System architecture and components |
+| [API Documentation](docs/API_DOCUMENTATION.md) | API endpoints and permissions |
+| [Database Design](docs/DATABASE_DESIGN.md) | Database models and relationships |
+| [Deployment Guide](docs/DEPLOYMENT.md) | Hosting and deployment configuration |
+| [Testing Documentation](docs/TESTING.md) | Testing approach and results |
 
 ## Local Installation and Setup
 
@@ -100,7 +128,7 @@ cd multi-tenant-saas-platform
 
 ### 2. Backend Setup
 
-Open a terminal in the project root:
+Navigate to the backend directory:
 
 ```powershell
 cd backend
@@ -121,16 +149,26 @@ pip install -r requirements.txt
 
 Create a `.env` file inside the `backend` directory.
 
-Configure the following environment variables:
+Configure the required environment variables:
 
 ```env
 DJANGO_SECRET_KEY=your-secret-key
+DEBUG=False
+ALLOWED_HOSTS=localhost,127.0.0.1
 DATABASE_URL=your-database-url
+CORS_ALLOWED_ORIGINS=http://localhost:5173
+CSRF_TRUSTED_ORIGINS=http://localhost:5173
+```
 
+Optional Stripe configuration:
+
+```env
 STRIPE_SECRET_KEY=
 STRIPE_PUBLISHABLE_KEY=
 STRIPE_WEBHOOK_SECRET=
 STRIPE_PRICE_ID=
+STRIPE_SUCCESS_URL=
+STRIPE_CANCEL_URL=
 ```
 
 Use your own database connection string and secret credentials. Never commit real credentials or secret keys to GitHub.
@@ -164,6 +202,17 @@ Open another terminal from the project root:
 ```powershell
 cd frontend
 npm install
+```
+
+Create a frontend `.env` file if required:
+
+```env
+VITE_API_BASE_URL=http://127.0.0.1:8000/api/
+```
+
+Start the frontend development server:
+
+```powershell
 npm run dev
 ```
 
@@ -173,7 +222,7 @@ http://localhost:5173/
 
 ## Docker Setup
 
-Docker and Docker Compose can be used to run the backend and frontend containers.
+Docker and Docker Compose can be used for local development.
 
 Run from the project root:
 
@@ -197,12 +246,13 @@ docker compose down
 
 ### Backend Tests
 
-From the project root:
+From the backend directory:
 
 ```powershell
-cd backend
 python manage.py test accounts workspaces projects billing --settings=config.settings_test
 ```
+
+The backend test suite previously completed with 23 passing tests and no failures.
 
 ### Frontend Lint
 
@@ -218,17 +268,23 @@ npm run lint
 npm run build
 ```
 
+Frontend linting and production build checks completed successfully during development.
+
 ## Background Tasks
 
-Celery and Redis are used for asynchronous background processing, including due-date reminder tasks.
+The project includes Celery integration for asynchronous background processing, including due-date reminder functionality.
 
-A Celery worker and Celery Beat scheduler are required for background and scheduled tasks to execute.
+A separately configured Celery worker, Celery Beat scheduler, and Redis service are required for background and scheduled tasks to execute.
 
 ## Billing Integration
 
-The application includes Stripe subscription and webhook integration.
+The application includes Stripe subscription checkout and webhook integration.
 
-Live payment processing requires valid Stripe credentials, a configured Stripe Price ID, and a webhook endpoint.
+Live payment processing requires:
+
+- Valid Stripe API credentials
+- A configured Stripe Price ID
+- A configured webhook endpoint and signing secret
 
 The billing integration can also be tested using mocked API responses without live payment credentials.
 
@@ -241,15 +297,30 @@ GitHub Actions is configured to automate:
 - Frontend ESLint checks
 - Frontend production builds
 
+Backend CI tests use SQLite test settings.
+
 ## Database
 
 The application uses PostgreSQL and supports Neon PostgreSQL through environment-based database configuration.
+
+The application uses workspace-based data scoping to separate tenant data.
+
+## Deployment Notes
+
+- Frontend is deployed on Vercel.
+- Backend is deployed on Render.
+- PostgreSQL database is hosted on Neon.
+- Render Free services may sleep after inactivity, causing delays on the first request.
+- Uploaded media files on the Render Free filesystem are not guaranteed to persist across redeployments.
+- Production email delivery requires an external email service.
+- Live Stripe payments require additional credentials and webhook configuration.
+- Background task execution requires a separately configured worker and Redis service.
 
 ## Author
 
 **Sakshi Mishra**
 
-GitHub: [mishrasakshi10](https://github.com/mishrasakshi10)
+GitHub: https://github.com/mishrasakshi10
 
 ---
 
