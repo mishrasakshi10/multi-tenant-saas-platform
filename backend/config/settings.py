@@ -19,12 +19,27 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 
 if not SECRET_KEY or SECRET_KEY.startswith("django-insecure-"):
     raise RuntimeError(
-        "A valid DJANGO_SECRET_KEY must be configured in .env"
+        "A valid DJANGO_SECRET_KEY must be configured."
     )
 
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "backend"]
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        "ALLOWED_HOSTS",
+        "localhost,127.0.0.1,backend"
+    ).split(",")
+    if host.strip()
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CSRF_TRUSTED_ORIGINS", ""
+    ).split(",")
+    if origin.strip()
+]
 
 
 # =========================
@@ -56,6 +71,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -65,6 +81,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+
+# =========================
+# URL AND TEMPLATE CONFIGURATION
+# =========================
 
 ROOT_URLCONF = 'config.urls'
 
@@ -136,11 +156,22 @@ USE_TZ = True
 # STATIC AND MEDIA FILES
 # =========================
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
 
 MEDIA_ROOT = BASE_DIR / 'media'
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 
 # =========================
@@ -186,8 +217,17 @@ SIMPLE_JWT = {
 
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
+
 X_FRAME_OPTIONS = 'DENY'
 SECURE_CONTENT_TYPE_NOSNIFF = True
+
+SECURE_PROXY_SSL_HEADER = (
+    "HTTP_X_FORWARDED_PROTO",
+    "https"
+)
+
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 
 
 # =========================
@@ -195,8 +235,14 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 # =========================
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:5173"
+    ).split(",")
+    if origin.strip()
 ]
+
 
 # =========================
 # STRIPE CONFIGURATION

@@ -1,14 +1,20 @@
 
 import axios from "axios";
 
+// Backend API URL
+const API_BASE_URL = (
+    import.meta.env.VITE_API_BASE_URL ||
+    "http://127.0.0.1:8000/api/"
+).replace(/\/?$/, "/");
+
 const api = axios.create({
-    baseURL: "http://127.0.0.1:8000/api/",
+    baseURL: API_BASE_URL,
     headers: {
         "Content-Type": "application/json",
     },
 });
 
-// Automatically attach JWT access token to API requests
+// Automatically attach JWT access token
 api.interceptors.request.use(
     (config) => {
         const accessToken = localStorage.getItem("accessToken");
@@ -30,14 +36,15 @@ api.interceptors.response.use(
 
         if (
             error.response?.status === 401 &&
-            !originalRequest?._retry &&
+            originalRequest &&
+            !originalRequest._retry &&
             localStorage.getItem("refreshToken")
         ) {
             originalRequest._retry = true;
 
             try {
                 const response = await axios.post(
-                    "http://127.0.0.1:8000/api/auth/token/refresh/",
+                    `${API_BASE_URL}auth/token/refresh/`,
                     {
                         refresh: localStorage.getItem("refreshToken"),
                     }
@@ -46,18 +53,26 @@ api.interceptors.response.use(
                 const newAccessToken = response.data.access;
 
                 if (response.data.refresh) {
-    localStorage.setItem("refreshToken", response.data.refresh);
-}
+                    localStorage.setItem(
+                        "refreshToken",
+                        response.data.refresh
+                    );
+                }
 
-                localStorage.setItem("accessToken", newAccessToken);
+                localStorage.setItem(
+                    "accessToken",
+                    newAccessToken
+                );
 
                 originalRequest.headers.Authorization =
                     `Bearer ${newAccessToken}`;
 
                 return api(originalRequest);
+
             } catch (refreshError) {
                 localStorage.removeItem("accessToken");
                 localStorage.removeItem("refreshToken");
+
                 window.location.href = "/login";
 
                 return Promise.reject(refreshError);
