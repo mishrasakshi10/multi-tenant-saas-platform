@@ -1,9 +1,11 @@
 
 import logging
+from datetime import datetime, timezone as datetime_timezone
 
 import stripe
 
 from django.conf import settings
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -16,12 +18,70 @@ from rest_framework import status
 from workspaces.models import Workspace
 from workspaces.permissions import IsWorkspaceOwner, IsWorkspaceMember
 
-from .models import Subscription
+from .models import Subscription, StripeWebhookEvent
 from .serializers import SubscriptionSerializer
 from .stripe_service import get_stripe_client
 
 
 logger = logging.getLogger(__name__)
+
+
+def get_stripe_object_id(value):
+    if isinstance(value, str):
+        return value
+
+    if isinstance(value, dict):
+        return value.get("id")
+
+    return getattr(value, "id", None)
+
+
+def update_subscription_from_stripe(
+    subscription,
+    stripe_subscription,
+    deleted=False
+):
+    stripe_status = stripe_subscription.get("status")
+
+    if deleted:
+        subscription.status = Subscription.Status.CANCELED
+    elif stripe_status in Subscription.Status.values:
+        subscription.status = stripe_status
+    else:
+        logger.warning(
+            "Unknown Stripe subscription status: %s",
+            stripe_status
+        )
+
+    period_end = stripe_subscription.get("current_period_end")
+
+    if period_end:
+        subscription.current_period_end = datetime.fromtimestamp(
+            period_end,
+            tz=datetime_timezone.utc
+        )
+
+    subscription.cancel_at_period_end = (
+        False if deleted
+        else stripe_subscription.get("cancel_at_period_end", False)
+    )
+
+    customer_id = get_stripe_object_id(
+        stripe_subscription.get("customer")
+    )
+
+    if customer_id:
+        subscription.stripe_customer_id = customer_id
+
+    items = stripe_subscription.get("items", {}).get("data", [])
+
+    if items:
+        price_id = get_stripe_object_id(items[0].get("price"))
+
+        if price_id:
+            subscription.stripe_price_id = price_id
+
+    subscription.save()
 
 
 class CreateCheckoutSessionAPIView(APIView):
@@ -60,16 +120,19 @@ class CreateCheckoutSessionAPIView(APIView):
             )
 
         try:
-
             client = get_stripe_client()
 
-            subscription, created = Subscription.objects.get_or_create(
+            subscription, _ = Subscription.objects.get_or_create(
                 workspace=workspace
             )
 
             if subscription.status == Subscription.Status.ACTIVE:
                 return Response(
-                    {"detail": "This workspace already has an active subscription."},
+                    {
+                        "detail": (
+                            "This workspace already has an active subscription."
+                        )
+                    },
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -207,56 +270,123 @@ class StripeWebhookAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        event_type = event["type"]
-        event_data = event["data"]["object"]
+        event_id = event.get("id")
+        event_type = event.get("type")
+        event_data = event.get("data", {}).get("object", {})
 
-        if event_type == "checkout.session.completed":
-
-            workspace_id = event_data.get("metadata", {}).get(
-                "workspace_id"
+        if not event_id or not event_type:
+            return Response(
+                {"detail": "Invalid Stripe event."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-            if workspace_id:
-                Subscription.objects.filter(
-                    workspace_id=workspace_id
-                ).update(
-                    stripe_subscription_id=event_data.get("subscription"),
-                    status=Subscription.Status.INCOMPLETE
+        try:
+            with transaction.atomic():
+
+                _, created = StripeWebhookEvent.objects.get_or_create(
+                    event_id=event_id,
+                    defaults={"event_type": event_type}
                 )
 
-        elif event_type in [
-            "customer.subscription.updated",
-            "customer.subscription.deleted"
-        ]:
+                if not created:
+                    return Response({"received": True})
 
-            workspace_id = event_data.get("metadata", {}).get(
-                "workspace_id"
+                if event_type == "checkout.session.completed":
+
+                    workspace_id = event_data.get(
+                        "metadata", {}
+                    ).get("workspace_id")
+
+                    stripe_subscription_id = get_stripe_object_id(
+                        event_data.get("subscription")
+                    )
+
+                    if workspace_id and stripe_subscription_id:
+
+                        subscription = (
+                            Subscription.objects.select_for_update()
+                            .filter(workspace_id=workspace_id)
+                            .first()
+                        )
+
+                        if subscription:
+
+                            client = get_stripe_client()
+
+                            stripe_subscription = (
+                                client.v1.subscriptions.retrieve(
+                                    stripe_subscription_id
+                                )
+                            )
+
+                            subscription.stripe_subscription_id = (
+                                stripe_subscription_id
+                            )
+
+                            update_subscription_from_stripe(
+                                subscription,
+                                stripe_subscription
+                            )
+
+                elif event_type in (
+                    "customer.subscription.created",
+                    "customer.subscription.updated",
+                    "customer.subscription.deleted"
+                ):
+
+                    stripe_subscription_id = event_data.get("id")
+
+                    workspace_id = event_data.get(
+                        "metadata", {}
+                    ).get("workspace_id")
+
+                    subscription = None
+
+                    if workspace_id:
+                        subscription = (
+                            Subscription.objects.select_for_update()
+                            .filter(workspace_id=workspace_id)
+                            .first()
+                        )
+
+                    if not subscription and stripe_subscription_id:
+                        subscription = (
+                            Subscription.objects.select_for_update()
+                            .filter(
+                                stripe_subscription_id=stripe_subscription_id
+                            )
+                            .first()
+                        )
+
+                    if subscription:
+
+                        subscription.stripe_subscription_id = (
+                            stripe_subscription_id
+                        )
+
+                        update_subscription_from_stripe(
+                            subscription,
+                            event_data,
+                            deleted=(
+                                event_type
+                                == "customer.subscription.deleted"
+                            )
+                        )
+
+            return Response({"received": True})
+
+        except stripe.StripeError:
+            logger.exception("Stripe webhook processing failed.")
+
+            return Response(
+                {"detail": "Stripe webhook processing failed."},
+                status=status.HTTP_502_BAD_GATEWAY
             )
 
-            if workspace_id:
+        except Exception:
+            logger.exception("Unexpected Stripe webhook error.")
 
-                subscription = Subscription.objects.filter(
-                    workspace_id=workspace_id
-                ).first()
-
-                if subscription:
-
-                    subscription.status = event_data.get(
-                        "status",
-                        Subscription.Status.CANCELED
-                    )
-
-                    subscription.cancel_at_period_end = event_data.get(
-                        "cancel_at_period_end",
-                        False
-                    )
-
-                    subscription.save(
-                        update_fields=[
-                            "status",
-                            "cancel_at_period_end",
-                            "updated_at"
-                        ]
-                    )
-
-        return Response({"received": True})
+            return Response(
+                {"detail": "Webhook processing failed."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

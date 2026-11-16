@@ -7,6 +7,7 @@ class Subscription(models.Model):
 
     class Status(models.TextChoices):
         INCOMPLETE = "incomplete", "Incomplete"
+        INCOMPLETE_EXPIRED = "incomplete_expired", "Incomplete Expired"
         ACTIVE = "active", "Active"
         PAST_DUE = "past_due", "Past Due"
         CANCELED = "canceled", "Canceled"
@@ -68,3 +69,22 @@ class Subscription(models.Model):
 
     def __str__(self):
         return f"{self.workspace.name} - {self.plan_name} ({self.status})"
+
+
+class StripeWebhookEvent(models.Model):
+
+    event_id = models.CharField(
+        max_length=255,
+        unique=True
+    )
+
+    event_type = models.CharField(
+        max_length=255
+    )
+
+    processed_at = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    def __str__(self):
+        return f"{self.event_type} - {self.event_id}"
