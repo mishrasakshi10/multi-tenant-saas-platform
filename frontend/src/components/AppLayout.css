@@ -471,3 +471,18 @@
 .app-page-content {
     padding-top: 16px;
 }
+.app-brand {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0 8px 30px;
+    width: 100%;
+}
+
+.app-brand-logo {
+    width: 205px;
+    height: 65px;
+    object-fit: contain;
+    object-position: left center;
+    display: block;
+}

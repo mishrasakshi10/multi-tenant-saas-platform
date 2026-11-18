@@ -176,13 +176,12 @@ function AppLayout() {
         <div className="app-layout">
             <aside className="app-sidebar">
                 <div className="app-brand">
-                    <div className="app-brand-icon">P</div>
-
-                    <div>
-                        <h2>ProjectHub</h2>
-                        <span>WORKSPACE</span>
-                    </div>
-                </div>
+    <img
+        src="/ProjectHub-Logo.png"
+        alt="ProjectHub"
+        className="app-brand-logo"
+    />
+</div>
 
                 {/* WORKSPACE SWITCHER */}
                 <div className="workspace-switcher">
